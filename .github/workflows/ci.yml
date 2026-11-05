@@ -1,4 +1,4 @@
-name: M2 quality and PostgreSQL security gate
+name: M3 indexer and PostgreSQL security gates
 on:
   pull_request:
   push:
@@ -39,6 +39,25 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Apply PostgreSQL migration
         run: |
-          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
-      - name: Verify types, unit tests, database security tests and production build
+          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));await db.query(fs.readFileSync("db/migrations/002_m3_nft_indexer.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
+      - name: Verify typechecks, canonical NFT reorg and PostgreSQL tests, production build
         run: npm run check
+
+  external-source-sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sample live read-only Ultra EVM Testnet RPC and explorer
+        run: node scripts/check-live-testnet.mjs
+      - name: Preserve source evidence or blocker
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3-real-source-check
+          path: .artifacts/m3-network-check.json
+          if-no-files-found: warn
