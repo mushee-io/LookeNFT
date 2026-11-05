@@ -1,4 +1,4 @@
-name: M1 quality gate
+name: M2 quality and PostgreSQL security gate
 on:
   pull_request:
   push:
@@ -8,7 +8,26 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: lookenft
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lookenft"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/lookenft
+      APP_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_ULTRA_NETWORK: testnet
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,8 +37,8 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Typecheck, smoke tests and production build
+      - name: Apply PostgreSQL migration
+        run: |
+          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
+      - name: Verify types, unit tests, database security tests and production build
         run: npm run check
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
-          NEXT_PUBLIC_ULTRA_NETWORK: testnet

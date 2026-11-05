@@ -1,127 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ACTIVE_NETWORK, chainIdHex, isEvmAddress } from "@/lib/network";
-
-type EthereumProvider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on?: (event: string, listener: (...args: unknown[]) => void) => void;
-  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
-};
-
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider;
-  }
-}
-
-function currentWallet(): EthereumProvider | undefined {
-  return typeof window === "undefined" ? undefined : window.ethereum;
-}
+import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { ACTIVE_NETWORK } from "@/lib/network";
+import { useWalletSession } from "@/components/WalletSessionProvider";
 
 export default function WalletConnect() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [wrongChain, setWrongChain] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const provider = currentWallet();
-    if (!provider) return;
-
-    let mounted = true;
-    const onAccounts = (...args: unknown[]) => {
-      const accounts = args[0];
-      const first = Array.isArray(accounts) ? accounts[0] : undefined;
-      if (mounted) setAddress(isEvmAddress(first) ? first : null);
-    };
-    const onChain = (...args: unknown[]) => {
-      if (mounted) setWrongChain(args[0] !== chainIdHex(ACTIVE_NETWORK.chainId));
-    };
-    void provider.request({ method: "eth_accounts" }).then((result) => onAccounts(result)).catch(() => {});
-    void provider.request({ method: "eth_chainId" }).then((result) => onChain(result)).catch(() => {});
-    provider.on?.("accountsChanged", onAccounts);
-    provider.on?.("chainChanged", onChain);
-    return () => {
-      mounted = false;
-      provider.removeListener?.("accountsChanged", onAccounts);
-      provider.removeListener?.("chainChanged", onChain);
-    };
-  }, []);
-
-  async function ensureNetwork(provider: EthereumProvider) {
-    const expected = chainIdHex(ACTIVE_NETWORK.chainId);
-    const actual = await provider.request({ method: "eth_chainId" });
-    if (actual !== expected) {
-      try {
-        await provider.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: expected }],
-        });
-      } catch (error: unknown) {
-        const code = typeof error === "object" && error !== null && "code" in error
-          ? Number((error as { code: unknown }).code)
-          : null;
-        if (code !== 4902) throw error;
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [{
-            chainId: expected,
-            chainName: ACTIVE_NETWORK.name,
-            rpcUrls: [ACTIVE_NETWORK.rpcUrl],
-            blockExplorerUrls: [ACTIVE_NETWORK.explorerUrl],
-            nativeCurrency: {
-              name: "UOS", symbol: ACTIVE_NETWORK.currencySymbol, decimals: 18,
-            },
-          }],
-        });
-      }
-    }
-    const verified = await provider.request({ method: "eth_chainId" });
-    setWrongChain(verified !== expected);
-    if (verified !== expected) throw new Error("Wallet network does not match Ultra EVM");
-  }
-
-  async function connect() {
-    const provider = currentWallet();
-    if (!provider) {
-      setMessage("Install an EVM-compatible browser wallet to connect.");
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      const accounts = await provider.request({ method: "eth_requestAccounts" });
-      const first = Array.isArray(accounts) ? accounts[0] : undefined;
-      if (!isEvmAddress(first)) throw new Error("Wallet did not return a valid EVM address");
-      await ensureNetwork(provider);
-      setAddress(first);
-    } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : "Wallet connection was cancelled or failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const wallet = useWalletSession();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const wrongNetwork = wallet.address !== null && wallet.chainId !== ACTIVE_NETWORK.chainId;
 
   return (
     <div className="wallet-container">
       <div className="wallet-actions">
         <span className="network-tag">{ACTIVE_NETWORK.name}</span>
-        {address ? (
-          <a className="wallet-button wallet-connected" href={ACTIVE_NETWORK.explorerUrl + "/address/" + address}
-             target="_blank" rel="noopener noreferrer" title="View address in the official explorer">
-            {address.slice(0, 6) + "…" + address.slice(-4)}
-          </a>
+        {wallet.address ? (
+          <>
+            <a className="wallet-button wallet-connected"
+              href={ACTIVE_NETWORK.explorerUrl + "/address/" + wallet.address} target="_blank"
+              rel="noopener noreferrer" aria-label="View connected wallet on explorer">
+              {wallet.address.slice(0, 6) + "…" + wallet.address.slice(-4)}
+            </a>
+            {wrongNetwork ? (
+              <button className="wallet-button" onClick={() => void wallet.switchNetwork()} disabled={wallet.pending}>Switch to Testnet</button>
+            ) : !wallet.authenticated ? (
+              <button className="wallet-button" onClick={() => void wallet.signIn()} disabled={wallet.pending}>
+                {wallet.pending ? "Working…" : "Sign in"}
+              </button>
+            ) : <span className="wallet-authenticated">Signed in</span>}
+            <button className="wallet-button wallet-disconnect" onClick={() => void wallet.disconnect()}
+              disabled={wallet.pending} aria-label="Disconnect Looke NFT session">Disconnect</button>
+          </>
         ) : (
-          <button className="wallet-button" type="button" onClick={connect} disabled={busy}>
-            {busy ? "Connecting…" : "Connect wallet"}
+          <button className="wallet-button" type="button" disabled={wallet.pending}
+            onClick={() => setPickerOpen((old) => !old)}>
+            {wallet.pending ? "Connecting…" : "Connect wallet"}
           </button>
         )}
-        {address && wrongChain && (
-          <button className="wallet-button" type="button" disabled={busy} onClick={connect}>Switch network</button>
-        )}
       </div>
-      {message && <p className="wallet-message" role="status">{message}</p>}
+
+      {pickerOpen && !wallet.address && (
+        <div className="wallet-picker" role="group" aria-label="Choose your wallet">
+          <strong>Choose wallet</strong>
+          {wallet.options.filter((p) => p.kind === "injected").map((p) => (
+            <button key={p.id} className="wallet-choice" disabled={wallet.pending}
+              onClick={() => { setPickerOpen(false); void wallet.connect(p.id); }}>{p.name}</button>
+          ))}
+          {wallet.options.filter((p) => p.kind === "injected").length === 0 &&
+            <p>No browser wallet detected. Use a mobile wallet or install an EVM-compatible extension.</p>}
+          <button className="wallet-choice" disabled={wallet.pending}
+            onClick={() => { setPickerOpen(false); void wallet.connectWalletConnect(); }}>
+            WalletConnect (QR / mobile)
+          </button>
+          <p className="wallet-note">WalletConnect requires an operator-configured Reown Project ID. Looke never asks for seed phrases.</p>
+        </div>
+      )}
+
+      {wallet.pairingUri && (
+        <div className="wallet-picker wallet-qr" role="dialog" aria-label="WalletConnect pairing">
+          <strong>Scan with your wallet</strong>
+          <QRCodeSVG value={wallet.pairingUri} size={186} level="M"/>
+          <p className="wallet-note">Scan this QR with a supported mobile wallet. Check the domain before approving.</p>
+          <button className="wallet-choice" onClick={wallet.dismissPairing}>Close QR</button>
+        </div>
+      )}
+      {wallet.error && <p className="wallet-message" role="alert">{wallet.error}</p>}
     </div>
   );
 }

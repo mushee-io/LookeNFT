@@ -1,6 +1,12 @@
-import EmptyView from "@/components/EmptyView";
+import WalletOverview from "@/components/WalletOverview";
+
 export default function PortfolioPage() {
-  return <EmptyView eyebrow="YOUR WALLET" title="Your NFTs, one place."
-    description="Connect an EVM wallet above. Wallet asset discovery and verified ownership history are coming."
-    nextMilestone="M2 adds persistent wallet session state and wrong-network handling. M3 provides independent NFT ownership indexing." />;
+  return (
+    <section className="interior">
+      <p className="eyebrow">YOUR WALLET / LOOKE NFT</p>
+      <h1>One wallet. One verified identity.</h1>
+      <p className="interior-copy">Your account session is isolated by wallet and Ultra EVM chain. A wallet connection alone is not an authenticated Looke session.</p>
+      <WalletOverview />
+    </section>
+  );
 }
