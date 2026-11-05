@@ -1,34 +1,35 @@
 # Looke NFT Marketplace
 
-LookeNFT is the **Ultra EVM-only** NFT marketplace that will integrate with Looke Social. It takes inspiration from VeryChat's simple in-app NFT Market without copying their assets or contract implementations.
+LookeNFT is an **Ultra EVM-only**, social-first NFT marketplace, inspired by VeryChat's simple integrated NFT Market. It will link to Looke Social but currently has **no live minting, listings, offers, purchases, fees or synthetic NFT records**.
 
-**Current stage: M1 foundation.** No NFT or marketplace smart contracts are deployed by this project, and no minting, offers, purchases, fees, royalties or burn operations are active. No collections or trading activity are fabricated.
-
-## Ultra EVM networks
+## Networks
 
 | Environment | Chain ID | RPC | Explorer |
 | --- | ---: | --- | --- |
 | Testnet (default) | 18881 | https://evm.test.ultra.eosusa.io | https://evmexplorer.testnet.ultra.io |
-| Mainnet (opt-in config only) | 19991 | https://evm.ultra.eosusa.io | https://evmexplorer.ultra.io |
+| Mainnet (NO-GO) | 19991 | https://evm.ultra.eosusa.io | https://evmexplorer.ultra.io |
 
-Source: https://developers.ultra.io/tutorials/Ultra-EVM/Resources
+Official network source: https://developers.ultra.io/tutorials/Ultra-EVM/Resources
 
-**Scope:** EVM accounts and smart contracts only for initial delivery. Ultra Native accounts/Uniqs, Base, BNB and other chains are out of scope.
+## M2 setup
 
-## Run locally
+- Install Node 22+ and PostgreSQL 16+; create a separate database and least-privilege role.
+- `npm install`; copy `.env.example` to `.env.local` and fill `DATABASE_URL` and `APP_ORIGIN`.
+- Apply `db/migrations/001_m2_wallet_auth.sql` once with your database client.
+- `npm run dev`; visit http://localhost:3000. Never put private key material into environment files.
+- `npm run check` (requires PostgreSQL) runs types, unit/adversarial PostgreSQL integration tests and production build.
+- Optional: configure public `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` for WalletConnect v2 QR mobile pairing.
+- Optional: configure `LOOKE_IDENTITY_PUBLIC_KEY_PEM` and `LOOKE_IDENTITY_ISSUER` only after Looke Social securely publishes issuer-signed wallet identity assertions with audience `lookenft`.
 
-1. Install Node.js 22+ and npm.
-2. Run npm install.
-3. Copy .env.example to .env.local (testnet default).
-4. Run npm run dev and open http://localhost:3000.
-5. Run npm run check before merging (typecheck, smoke tests, production build).
+## Wallet-authentication model
 
-## Security and product gates
+1. User explicitly connects with EIP-1193/EIP-6963/WalletConnect.
+2. User explicitly clicks **Sign in**. LookeNFT issues a short-lived EIP-4361-style message containing host, URI, chain ID, account, one-time nonce and expiry.
+3. Wallet returns an EIP-191 personal signature; server verifies it against the exact persisted challenge (EOA accounts at this stage), consumes the nonce atomically in PostgreSQL and issues a 12-hour HttpOnly cookie.
+4. Every authenticated route checks session expiration, revocation and the configured Ultra EVM chain; disconnect revokes the server token.
+5. Browser reload silently queries `eth_accounts` only for an already-authorised provider and matches it with the existing server session. Account/network changes clear the UI auth state and revoke cookies.
+6. Looke Social profile linking is **disabled without a real signed assertion issuer**. A display name or handle is not identity proof; verified JWTs are bound to the authenticated wallet, issuer, audience, expiry and unique jti.
 
-- Wallet uses EIP-1193 requests only after an explicit Connect click. No private keys, seed phrases, custody or on-chain transactions.
-- If needed, wallet network selection requests an explicit user-approved switch.
-- Never change to mainnet solely by setting an environment variable; M15 requires independent audit, operator sign-off and deployment gates.
-- Only real on-chain proof should populate listings, NFTs, sales, balances, charts or volume.
-- Fixed-price and offers, protocol fees, burn mechanics and royalties are proposals until separately specified, implemented and reviewed.
+**Not supported yet:** EIP-1271 contract-account sign-in; wallet execution; NFT ownership reads; real Looke Social SSO issuance; mainnet release. This code is testnet-first, not production identity sign-off.
 
-See [M1–M15 detailed roadmap](docs/ROADMAP.md) and [M1 acceptance checklist](docs/M1_ACCEPTANCE.md).
+Review [M1 evidence and missing acceptance](docs/M1_REVIEW.md), [M2 acceptance](docs/M2_ACCEPTANCE.md) and the [M1–M15 roadmap](docs/ROADMAP.md).
