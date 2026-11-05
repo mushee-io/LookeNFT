@@ -8,7 +8,7 @@ export const E1155_BATCH = parseAbiItem("event TransferBatch(address indexed ope
 export type RpcLog = {
   address: string; blockNumber: bigint | null; blockHash: Hex | null;
   transactionHash: Hex | null; transactionIndex: number | null;
-  logIndex: number | null; topics: readonly Hex[]; data: Hex;
+  logIndex: number | null; topics: readonly (Hex | readonly Hex[] | null)[]; data: Hex;
 };
 export type Transfer = {
   contract: string; standard: TokenStandard; blockNumber: bigint; blockHash: string;
@@ -35,10 +35,11 @@ export function decodeTransfers(log: RpcLog, standard: TokenStandard): Transfer[
       !EVM_HASH.test(log.blockHash) || !EVM_HASH.test(log.transactionHash)) {
     throw new Error("Incomplete or malformed RPC transfer log");
   }
+  if (log.topics.length === 0 || log.topics.some((topic) => typeof topic !== "string")) throw new Error("Malformed RPC event topics");
   const abi = standard === "erc721" ? [E721] : [E1155_SINGLE, E1155_BATCH];
   let decoded: { eventName: string; args: unknown };
   try {
-    decoded = decodeEventLog({ abi, data: log.data, topics: log.topics as [Hex, ...Hex[]], strict: true }) as unknown as {
+    decoded = decodeEventLog({ abi, data: log.data, topics: log.topics as unknown as [Hex, ...Hex[]], strict: true }) as unknown as {
       eventName: string; args: unknown;
     };
   } catch {
