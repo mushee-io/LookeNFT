@@ -172,8 +172,11 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
       const accounts = await option.provider.request({ method: "eth_requestAccounts" });
       const wallet = validAccounts(accounts)[0];
       if (!wallet) throw new Error("Wallet returned no valid EVM account");
-      attachProvider(option.provider);
+      // Attach listeners only after a user-approved chain switch: its own
+      // chainChanged event must not cancel the in-flight connect operation.
       await ensureChain(option.provider, ACTIVE_NETWORK);
+      if (revision !== sequence.current) return;
+      attachProvider(option.provider);
       const currentChain = hexChain(await option.provider.request({ method: "eth_chainId" }));
       if (revision !== sequence.current) return;
       setAddress(wallet);
