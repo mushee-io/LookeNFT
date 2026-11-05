@@ -1,6 +1,6 @@
 {
   "name": "lookenft",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,11 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:integration": "node --import tsx --test tests/*.integration.test.ts",
-    "check": "npm run typecheck && npm run test && npm run test:integration && npm run build"
+    "check": "npm run typecheck && npm run test && npm run test:integration && npm run build",
+    "indexer:once": "tsx scripts/indexer-once.ts",
+    "indexer:register": "tsx scripts/register-collection.ts",
+    "indexer:verify": "tsx scripts/verify-independent.ts",
+    "indexer:reindex": "tsx scripts/reindex-testnet.ts"
   },
   "dependencies": {
     "next": "16.4.5",

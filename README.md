@@ -33,3 +33,25 @@ Official network source: https://developers.ultra.io/tutorials/Ultra-EVM/Resourc
 **Not supported yet:** EIP-1271 contract-account sign-in; wallet execution; NFT ownership reads; real Looke Social SSO issuance; mainnet release. This code is testnet-first, not production identity sign-off.
 
 Review [M1 evidence and missing acceptance](docs/M1_REVIEW.md), [M2 acceptance](docs/M2_ACCEPTANCE.md) and the [M1–M15 roadmap](docs/ROADMAP.md).
+
+
+## M3 — Canonical NFT event index (read-only, Testnet only)
+
+M3 adds operator-approved NFT contract discovery, ERC-721/1155 event ingestion,
+confirmed block-hash checkpoints, reorg rollback, indexed ownership and
+allowlisted on-chain metadata. No NFT contracts, sales or trading are live.
+
+### Operator setup
+1. Configure PostgreSQL and apply `db/migrations/002_m3_nft_indexer.sql` after M2 migration 001. CI applies both to ephemeral PostgreSQL 16.
+2. Identify an actual deployed ERC-721 or ERC-1155 Ultra EVM Testnet contract. Set `NFT_COLLECTION_ADDRESS`, `NFT_COLLECTION_STANDARD`, and genuine `NFT_DEPLOYMENT_BLOCK`, then run `npm run indexer:register`. This checks ERC-165 and bytecode; it does **not** attest source auditing.
+3. Set `NFT_START_BLOCK` at or before the earliest registered deployment; run `npm run indexer:once`. Scanner consumes up to 25 sequential blocks per call and excludes the newest 12 blocks by default. It is NOT launched automatically.
+4. Explore real indexed collections at `/explore`, indexed ownership under `/portfolio`, individual collection tokens and transfer-only `/activity`. Without coverage, UI explicitly says balances cannot be inferred.
+5. Set `NFT_INDEPENDENT_RPC_URL` to a genuinely independent HTTPS Ultra EVM Testnet provider; run `npm run indexer:verify`. This compares indexed blocks and transfers with primary RPC, independent RPC and official Blockscout block hashes. Failure is a blocker, not a pass.
+6. When new contracts predate the cursor, obtain explicit operator approval, set `NFT_CONFIRM_REINDEX=REINDEX_ULTRA_TESTNET_EVENTS` and run `npm run indexer:reindex` to rebuild from the oldest registered deployment.
+
+NFT metadata is never fetched from arbitrary on-chain URIs. Configure exact
+`NFT_METADATA_ALLOWED_HOSTS` and an allowed `NFT_IPFS_GATEWAY`. All browser
+and API outputs remain read-only; neither source-code verification nor complete
+wallet coverage is implied.
+
+See `docs/M3_ACCEPTANCE.md` for checks and outstanding operator evidence.

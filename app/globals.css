@@ -107,3 +107,26 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
   .empty-state { padding: 32px 15px; }
   .footer { padding: 24px 17px; }
 }
+
+
+/* M3: evidence-first collection browsing and holdings */
+.collection-search-label { display:block; margin:30px 0 9px; font-size:12px; font-weight:750; }
+.collection-search { display:block; width:min(540px,100%); padding:15px 17px; border:1px solid var(--line); border-radius:13px; background:var(--white); color:var(--ink); font:inherit; font-size:14px; }
+.collection-search:focus-visible { outline:2px solid var(--purple); outline-offset:2px; }
+.index-warning { padding:15px 17px; margin:24px 0; background:#f1eeff; border:1px solid #dcd5fa; color:#4a3c7c; border-radius:13px; font-size:13px; line-height:1.65; overflow-wrap:anywhere; }
+.collection-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,275px),1fr)); gap:15px; margin-top:25px; }
+.collection-card { min-width:0; padding:23px; background:#fff; border-radius:19px; border:1px solid var(--line); }
+.collection-standard { display:inline-block; background:#efeaff; color:var(--purple); padding:6px 10px; border-radius:8px; font-size:11px; font-weight:750; letter-spacing:.5px; }
+.collection-card h2 { margin:20px 0 9px; font-size:21px; overflow-wrap:anywhere; letter-spacing:-.6px; }
+.collection-card p { color:var(--muted); line-height:1.7; font-size:12px; overflow-wrap:anywhere; }
+.collection-card dl { margin:20px 0; display:grid; gap:10px; }
+.collection-card dl div { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.collection-card dt { color:var(--muted); font-size:11px; }
+.collection-card dd { margin:0; font-size:12px; font-weight:750; text-align:right; }
+.collection-card a, .collection-links a { color:var(--purple); font-size:12px; font-weight:750; }
+.collection-links { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.event-list { display:grid; gap:10px; margin-top:20px; }
+.event-entry { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; background:#fff; padding:18px 20px; border:1px solid var(--line); border-radius:14px; font-size:13px; }
+.event-entry p { font-size:12px; color:var(--muted); margin:8px 0 0; overflow-wrap:anywhere; }
+.event-entry a { font-size:12px; font-weight:700; color:var(--purple); }
+@media(max-width:720px){ .collection-grid{ grid-template-columns:1fr; }.collection-card{padding:19px;}.event-entry{align-items:flex-start;} }
