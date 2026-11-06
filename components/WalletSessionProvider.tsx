@@ -5,6 +5,8 @@ import { ACTIVE_NETWORK } from "@/lib/network";
 import { createPublicClient, decodeFunctionData, encodeFunctionData, http, isAddress, toFunctionSelector, toHex, verifyTypedData, type Address, type Hex } from "viem";
 import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
 import { M7_MARKET_ADDRESS,marketAbi,marketTypes,listingDomain,hashListing,m7Gate,type Listing } from "@/lib/m7/market";
+import {M8_VAULT,offerAbi,offerHash,offerTypes,offerDomain,m8Gate,verifyOfferEOA,type Offer} from "@/lib/m8/offers";
+import {erc721Abi,erc1155Abi} from "@/lib/m7/market";
 import { describeWalletError, ensureChain, hexChain, validAccounts, type Eip1193Provider, type WalletOption } from "@/lib/wallet-provider";
 
 type Session = { authenticated: boolean; wallet: string; chainId: number; expiresAt: string; profileId: string | null };
@@ -29,6 +31,10 @@ type WalletContextValue = {
   signMarketListing: (listing: Listing) => Promise<Hex>;
   submitMarketBuy: (listing: Listing, signature: Hex) => Promise<Hex>;
   cancelMarketNonce: (nonce: bigint) => Promise<Hex>;
+  signBuyerOffer: (offer: Offer) => Promise<Hex>;
+  fundBuyerOffer: (offer: Offer, signature: Hex) => Promise<Hex>;
+  acceptBuyerOffer: (offer: Offer) => Promise<Hex>;
+  refundBuyerOffer: (offer: Offer) => Promise<Hex>;
   dismissPairing: () => void;
 };
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -566,11 +572,151 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     }finally{setPending(false);}
   }
 
+
+  async function checkM8Wallet(expected:string) {
+    const provider=providerRef.current, wallet=address, rev=sequence.current;
+    if(!provider||!wallet||!session||pending||wallet.toLowerCase()!==expected.toLowerCase()||
+       ACTIVE_NETWORK.chainId!==18881||chainId!==18881)
+      throw new Error("Explicit authenticated wallet and Ultra Testnet 18881 required");
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [network,version,code,accounts,providerChain,fresh]=await Promise.all([
+      rpc.getChainId(),rpc.readContract({address:M8_VAULT as Address,abi:offerAbi,functionName:"VERSION"}),
+      rpc.getCode({address:M8_VAULT as Address}),
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"}),apiSession()
+    ]);
+    if(network!==18881||version!==1n||!code||code==="0x"||
+       validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase()||
+       hexChain(providerChain)!==18881||sequence.current!==rev||
+       fresh?.wallet.toLowerCase()!==wallet.toLowerCase()||fresh?.chainId!==18881||
+       session.wallet.toLowerCase()!==wallet.toLowerCase())
+      throw new Error("M8 vault, wallet, network or authenticated session failed preflight");
+    return {provider,rpc,wallet:wallet as Address,rev};
+  }
+  async function signBuyerOffer(o:Offer):Promise<Hex>{
+    const reason=m8Gate("sign");if(reason)throw new Error(reason);
+    const {provider,wallet,rev}=await checkM8Wallet(o.buyer);
+    const digest=offerHash(o,M8_VAULT as Address);
+    setPending(true);
+    try{
+      const typed={domain:offerDomain(M8_VAULT as Address),primaryType:"Offer",
+        types:{EIP712Domain:[
+          {name:"name",type:"string"},{name:"version",type:"string"},
+          {name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}
+        ],Offer:offerTypes.Offer},message:o};
+      const response=await provider.request({
+        method:"eth_signTypedData_v4",
+        params:[wallet,JSON.stringify(typed,(_k,v)=>typeof v==="bigint"?v.toString():v)]
+      });
+      if(typeof response!=="string"||!/^0x[0-9a-fA-F]{130}$/.test(response)||
+         sequence.current!==rev||!await verifyOfferEOA(o,M8_VAULT as Address,response as Hex))
+        throw new Error("Buyer EIP-712 signature or wallet session is invalid");
+      if(!digest)throw new Error("Buyer order hash unavailable");
+      return response as Hex;
+    }finally{setPending(false);}
+  }
+  async function fundBuyerOffer(o:Offer,signature:Hex):Promise<Hex>{
+    const reason=m8Gate("fund");if(reason)throw new Error(reason);
+    if(!/^0x[0-9a-fA-F]{130}$/.test(signature)||
+       !await verifyOfferEOA(o,M8_VAULT as Address,signature))
+      throw new Error("Signed buyer consent required before exact UOS escrow funding");
+    const {provider,rpc,wallet,rev}=await checkM8Wallet(o.buyer);
+    const hash=offerHash(o,M8_VAULT as Address);
+    const [onchain,used,nonce,floor]=await Promise.all([
+      rpc.readContract({address:M8_VAULT as Address,abi:offerAbi,functionName:"offerHash",args:[o]}),
+      rpc.readContract({address:M8_VAULT as Address,abi:offerAbi,functionName:"offerState",args:[hash]}),
+      rpc.readContract({address:M8_VAULT as Address,abi:offerAbi,functionName:"fundedNonceHash",args:[wallet,o.nonce]}),
+      rpc.readContract({address:M8_VAULT as Address,abi:offerAbi,functionName:"minimumNonce",args:[wallet]})
+    ]);
+    if(onchain.toLowerCase()!==hash.toLowerCase()||used!==0||nonce!=="0x"+"0".repeat(64)||
+       floor>o.nonce||o.totalPriceWei<=0n||o.totalPriceWei>1000n*10n**18n)
+      throw new Error("UOS bid already funded, nonce reused, or payment not within limit");
+    await rpc.simulateContract({address:M8_VAULT as Address,abi:offerAbi,functionName:"fund",
+      args:[o,signature],account:wallet,value:o.totalPriceWei});
+    if(sequence.current!==rev)throw new Error("Buyer wallet changed before escrow deposit");
+    setPending(true);
+    try{
+      const tx=await provider.request({method:"eth_sendTransaction",params:[{
+        from:wallet,to:M8_VAULT,data:encodeFunctionData({abi:offerAbi,functionName:"fund",
+          args:[o,signature]}),value:toHex(o.totalPriceWei)
+      }]});
+      if(typeof tx!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(tx))throw new Error("Wallet returned no deposit transaction hash");
+      return tx as Hex;
+    }finally{setPending(false);}
+  }
+  async function acceptBuyerOffer(o:Offer):Promise<Hex>{
+    const reason=m8Gate("accept");if(reason)throw new Error(reason);
+    const wallet=address;if(!wallet||wallet.toLowerCase()===o.buyer.toLowerCase()||
+       (o.allowedSeller.toLowerCase()!=="0x"+"0".repeat(40)&&
+        wallet.toLowerCase()!==o.allowedSeller.toLowerCase()))
+      throw new Error("A genuine authorised NFT seller wallet must accept the buyer offer");
+    const {provider,rpc,rev}=await checkM8Wallet(wallet);
+    const vault=M8_VAULT as Address,hash=offerHash(o,vault);
+    const [state,hashChain,quote,invalid,floor]=await Promise.all([
+      rpc.readContract({address:vault,abi:offerAbi,functionName:"offerState",args:[hash]}),
+      rpc.readContract({address:vault,abi:offerAbi,functionName:"offerHash",args:[o]}),
+      rpc.readContract({address:vault,abi:offerAbi,functionName:"quote",args:[o]}),
+      rpc.readContract({address:vault,abi:offerAbi,functionName:"invalidNonces",args:[o.buyer,o.nonce]}),
+      rpc.readContract({address:vault,abi:offerAbi,functionName:"minimumNonce",args:[o.buyer]})
+    ]);
+    if(state!==1||hashChain.toLowerCase()!==hash.toLowerCase()||invalid||floor>o.nonce||
+       quote[0]+quote[2]+quote[3]!==o.totalPriceWei)
+      throw new Error("Funded buyer intent, nonce, royalty or exact UOS accounting changed");
+    if(o.standard===1){
+      const [owner,approved,operator]=await Promise.all([
+        rpc.readContract({address:o.collection,abi:erc721Abi,functionName:"ownerOf",args:[o.tokenId]}),
+        rpc.readContract({address:o.collection,abi:erc721Abi,functionName:"getApproved",args:[o.tokenId]}),
+        rpc.readContract({address:o.collection,abi:erc721Abi,functionName:"isApprovedForAll",args:[wallet as Address,vault]})
+      ]);
+      if(owner.toLowerCase()!==wallet.toLowerCase()&&
+         approved.toLowerCase()===vault.toLowerCase())throw new Error("NFT ownership changed");
+      if(owner.toLowerCase()!==wallet.toLowerCase()||
+        (!operator&&approved.toLowerCase()!==vault.toLowerCase()))
+        throw new Error("Seller ownership or explicitly granted NFT transfer approval missing");
+    }else if(o.standard===2){
+      const [balance,operator]=await Promise.all([
+        rpc.readContract({address:o.collection,abi:erc1155Abi,functionName:"balanceOf",args:[wallet as Address,o.tokenId]}),
+        rpc.readContract({address:o.collection,abi:erc1155Abi,functionName:"isApprovedForAll",args:[wallet as Address,vault]})
+      ]);
+      if(balance<o.quantity||!operator)throw new Error("Seller ERC1155 balance or NFT operator approval missing");
+    }else throw new Error("Unknown NFT standard");
+    await rpc.simulateContract({address:vault,abi:offerAbi,functionName:"accept",args:[o],account:wallet as Address});
+    if(sequence.current!==rev)throw new Error("Seller wallet changed before offer acceptance");
+    setPending(true);
+    try{
+      const tx=await provider.request({method:"eth_sendTransaction",params:[{
+        from:wallet,to:vault,
+        data:encodeFunctionData({abi:offerAbi,functionName:"accept",args:[o]}),value:"0x0"
+      }]});
+      if(typeof tx!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(tx))
+        throw new Error("Wallet did not approve NFT settlement");
+      return tx as Hex;
+    }finally{setPending(false);}
+  }
+  async function refundBuyerOffer(o:Offer):Promise<Hex>{
+    const reason=m8Gate("refund");if(reason)throw new Error(reason);
+    const {provider,rpc,wallet,rev}=await checkM8Wallet(o.buyer);
+    const vault=M8_VAULT as Address;
+    if(await rpc.readContract({address:vault,abi:offerAbi,functionName:"offerState",
+      args:[offerHash(o,vault)]})!==1)throw new Error("No live escrowed buyer UOS to refund");
+    await rpc.simulateContract({address:vault,abi:offerAbi,functionName:"refundTo",
+      args:[o,wallet],account:wallet});
+    if(sequence.current!==rev)throw new Error("Buyer changed before refund");
+    setPending(true);
+    try{
+      const tx=await provider.request({method:"eth_sendTransaction",params:[{
+        from:wallet,to:vault,data:encodeFunctionData({abi:offerAbi,functionName:"refundTo",
+          args:[o,wallet]}),value:"0x0"
+      }]});
+      if(typeof tx!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(tx))throw new Error("Wallet did not approve refund");
+      return tx as Hex;
+    }finally{setPending(false);}
+  }
+
   return (
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>

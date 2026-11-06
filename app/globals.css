@@ -186,3 +186,10 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
   .creator-page .studio-grid .creator-form-grid{grid-template-columns:1fr}
   .creator-page .studio-grid .creator-form-grid .creator-wide{grid-column:auto}
 }
+
+/* M8 mobile-first escrow bid review with explicit disabled-by-default actions */
+.creator-page .studio-grid .creator-preflight .studio-asset button{margin-top:12px}
+.creator-page .creator-preflight dd{overflow-wrap:anywhere;white-space:normal}
+.creator-page .creator-ack{display:flex;align-items:flex-start;gap:10px}
+.creator-page .creator-ack input{flex:none;margin-top:4px}
+@media(max-width:780px){.creator-page .studio-grid{grid-template-columns:1fr}}

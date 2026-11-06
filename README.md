@@ -174,3 +174,30 @@ transfer/payout reverts the entire transaction. No live settlement executed.
 No marketplace address, operator/security authorisation, or real wallet-signed
 listing has been supplied. M1–M6 remain draft and release NO-GO. See
 `docs/M7_ACCEPTANCE.md` for evidence gates and precise integration blockers.
+
+## M8 — Secure native-UOS buyer bids (engineering only)
+
+M8 adds a separate `LookeFundedOffers` contract for **fully funded** EIP712
+buyer offers on Ultra EVM Testnet 18881. An exact, explicit wallet-approved
+UOS deposit locks the *entire* buyer offer before any seller acceptance.
+Funds are bound to the buyer's unique nonce and order hash, with cancellation
+and refund (including an alternative refund recipient chosen by the buyer).
+The seller separately approves NFT transfer and accepts, causing one atomic
+ERC721/1155 transfer + fixed 2% marketplace fee, ERC2981 royalty and seller
+proceeds. Failed NFT delivery or UOS payout reverts the whole transaction.
+No private keys, mainnet, automatic approvals or live transactions.
+
+`/offers` presents wallet-scoped drafts and read-only funded-offer evidence,
+never synthetic bidding volume. The server requires a genuine seller-independent
+buyer EOA signature **and primary Testnet fund receipt** before saving even a
+candidate. Public bids require a separate independently corroborated
+funding entry. `npm run offers:verify` compares two distinct real Testnet RPCs,
+the official Blockscout explorer, actual funding/settlement/refund events,
+and exact UOS payout / NFT transfer evidence before recording verified status.
+The prior Blockscout HTTP 404 must be resolved before this can succeed.
+
+Every signing, funding, acceptance, refund and server journal gate is **OFF by
+default**, pending actual operator wallet signatures, audited contract
+compatibility and real source-backed checks. Apply `006_m8_funded_offers.sql`
+after migrations 001–005. See `docs/M8_ACCEPTANCE.md`. M1–M7 remain
+unmerged drafts, with no live bid, UOS escrow or financial release.
