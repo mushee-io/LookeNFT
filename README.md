@@ -230,3 +230,38 @@ M9 is a stacked draft on M8. **No worker is scheduled** and every M9 scanner
 and wallet financial flag is OFF by default. Real M7/M8 deployment, human
 wallet acceptance, Blockscout, production operator PostgreSQL, Cancun opcode
 compatibility and independent audits remain NO-GO. See `docs/M9_ACCEPTANCE.md`.
+
+## M10 — Looke Social ↔ LookeNFT trusted read-only integration
+
+M10 adds `/social-link` and three wallet-scoped authenticated routes:
+`/api/social/bridge` (short-lived signed source snapshots),
+`/api/social/avatar` (ERC721/ERC1155 owner corroboration), and
+`/api/social/creators` (strictly gated discovery).
+PostgreSQL migration 008 records only claims from an operator-pinned
+**EdDSA source**, bound to the same M2 wallet/profile link with atomic
+nonce replay prevention, monotonic snapshots, moderation-approved public
+posts, and a five-minute, independently witnessed NFT avatar. No passwords,
+raw JWTs, source cookies, social DM content, synthetic creators, followers,
+likes, trades, posts or NFTs are stored.
+
+**Critical source blocker:** inspected `mushee-io/looke` `main`
+on 6 November 2026. It has authentic EIP-191 social wallet login, SQL
+profiles/feed/blocking/moderation, but it **does not issue compatible
+`lookenft-social-proof` EdDSA assertions**. M10 also requires an M2
+trusted identity issuer; neither is provisioned. The M10 public directory
+requires independently attested blocked/muted-viewer policy.
+All M10 features are OFF by default; no real Looke Social account is linked.
+
+NFT owner verification requires real approved ERC721/1155 collection code,
+M3 canonical indexer proof, independent secondary Ultra Testnet RPC,
+matching ERC165/token owner or balance at 12+ confirmed blocks, and official
+Blockscout block hash. HTTP 404 or any missing source stops before
+recording ownership. Even valid proof is historical (up to five minutes),
+not permanent ownership. Moderated image display also requires M6 real
+human review, clean malware scan, pinned IPFS metadata.
+
+Collection deep links are holder references, **not proof of being
+the collection creator**, and opening Looke Social does not post anything.
+Existing M9 verified wallet-only market notifications are read-only.
+Migration 008, source contract and precise NO-GO gates are documented in
+`docs/M10_ACCEPTANCE.md`. No mainnet, real deployment or trading action.

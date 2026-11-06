@@ -203,3 +203,9 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
  .creator-page .studio-action-row button{max-width:100%}
  .creator-page .studio-action-row input{width:100%}
 }
+
+/* M10 independently approved social/NFT identity cards. All actions operator gated. */
+.m10-nft-avatar{border-radius:20px;object-fit:cover;max-width:100%;height:auto;border:1px solid var(--line)}
+.creator-page .studio-assets .studio-asset p,.creator-page .studio-assets .studio-asset strong{overflow-wrap:anywhere}
+.creator-page .creator-form textarea{width:100%;max-width:100%;font:inherit;resize:vertical}
+@media(max-width:760px){.creator-page .studio-grid{grid-template-columns:1fr}}

@@ -23,14 +23,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               <nav className="site-nav" aria-label="Main navigation">
                 <Link href="/">Home</Link><Link href="/explore">Explore</Link>
                 <Link href="/create">Create</Link><Link href="/market">Market</Link><Link href="/offers">Bids</Link><Link href="/market/operations">Orderbook</Link><Link href="/studio">Studio</Link><Link href="/mint">Mint</Link><Link href="/portfolio">My NFTs</Link>
-                <Link href="/activity">Activity</Link>
+                <Link href="/activity">Activity</Link><Link href="/social-link">Social × NFTs</Link>
               </nav>
               <WalletConnect />
             </header>
             <main id="content">{children}</main>
             <footer className="footer">
               <span>Looke NFT · Ultra EVM only</span>
-              <span>M9 source-backed market operations · Trading and funding disabled by default</span>
+              <span>M10 trusted Looke Social + NFT ownership groundwork · Integration/trading disabled by default</span>
             </footer>
           </div>
         </WalletSessionProvider>
