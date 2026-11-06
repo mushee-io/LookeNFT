@@ -40,7 +40,8 @@ const details=async(pool:Pool)=>{
   "SELECT count(*)::text AS n FROM pg_constraint c JOIN pg_namespace ns ON ns.oid=c.connamespace WHERE ns.nspname='public'");
  return {tables:data,constraints:constraints.rows[0].n};
 };
-try{
+async function main(){
+ try{
  run("pg_dump",["-Fc","--no-owner","--no-privileges","--file",dump,url]);
  run("createdb",["--maintenance-db",admin.toString(),name]);
  created=true;
@@ -86,3 +87,11 @@ try{
   catch(e){console.error("Disposable scratch database cleanup failed",e);process.exitCode=1;}
  rmSync(root,{recursive:true,force:true});
 }
+
+}
+void main().catch(error=>{
+ console.error(JSON.stringify({status:"NO_GO_RESTORE_REHEARSAL",
+  error:error instanceof Error?error.message:"Unexpected restoration failure",
+  operatorRestoreApproved:false}));
+ process.exitCode=1;
+});
