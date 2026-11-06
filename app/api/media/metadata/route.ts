@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/server/auth";
+import { requireOperator } from "@/lib/server/curation";
 import { getDb,inTransaction } from "@/lib/server/db";
 import { ApiError,apiFailure,guardMutation,noStore,parseBody } from "@/lib/server/http";
 import { buildMetadata,checkCollectionCreator,parseTokenId } from "@/lib/m6/metadata";
@@ -10,7 +10,7 @@ export const dynamic="force-dynamic";
 
 export async function GET(request:NextRequest){
   try {
-    const session=await requireSession(request);
+    const session={ wallet: await requireOperator(request) };
     const r=await getDb().query(
       `SELECT id::text,collection_address,token_standard,token_id::text,
          version,asset_id::text,metadata,metadata_sha256,state,ipfs_cid,
@@ -26,7 +26,7 @@ export async function GET(request:NextRequest){
 export async function POST(request:NextRequest){
   try {
     guardMutation(request);
-    const session=await requireSession(request);
+    const session={ wallet: await requireOperator(request) };
     const body=await parseBody(request,8192);
     if(Object.keys(body).some(k=>!["assetId","collection","tokenId","name","description","attributes"].includes(k)))
       throw new ApiError(400,"Unrecognised metadata field");

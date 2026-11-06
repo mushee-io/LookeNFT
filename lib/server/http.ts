@@ -4,19 +4,39 @@ export class ApiError extends Error {
   constructor(public readonly status: number, message: string) { super(message); }
 }
 
-export function appOrigin(): URL {
-  const origin = process.env.APP_ORIGIN || (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
-  if (!origin) throw new ApiError(503, "APP_ORIGIN is not configured");
-  const url = new URL(origin);
-  if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) throw new ApiError(503, "Invalid APP_ORIGIN");
-  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new ApiError(503, "APP_ORIGIN must use HTTPS in production");
-  if (!["https:", "http:"].includes(url.protocol)) throw new ApiError(503, "Invalid application origin");
-  return url;
+/**
+ * Wallet authentication is host-bound. On Vercel, ephemeral and branch previews
+ * have their own valid origins; do NOT accept arbitrary Host or Origin headers.
+ */
+export function appOrigin(request?: NextRequest): URL {
+  const configured = process.env.APP_ORIGIN?.trim() || "";
+  const candidate = request
+    ? new URL(new URL(request.url).origin)
+    : new URL(configured || (process.env.VERCEL_URL ? "https://" + process.env.VERCEL_URL :
+        process.env.NODE_ENV !== "production" ? "http://localhost:3000" : "https://looke-ss.vercel.app"));
+  const hostname = candidate.hostname.toLowerCase();
+  const aliases = [configured ? new URL(configured).hostname : "",
+    process.env.VERCEL_URL || "",
+    process.env.VERCEL_BRANCH_URL || "",
+    process.env.VERCEL_PROJECT_PRODUCTION_URL || "",
+    "looke-ss.vercel.app"].filter(Boolean).map(x => x.toLowerCase());
+  const verifiedVercelPreview = /^looke(?:-ss)?-[a-z0-9-]+-mushee-ios-projects\.vercel\.app$/.test(hostname);
+  const devLocalhost = process.env.NODE_ENV !== "production" &&
+    ["localhost", "127.0.0.1"].includes(hostname);
+  if (request && !(aliases.includes(hostname) || verifiedVercelPreview || devLocalhost))
+    throw new ApiError(403, "Application hostname is not approved");
+  if (candidate.pathname !== "/" || candidate.search || candidate.hash || candidate.username || candidate.password)
+    throw new ApiError(503, "Invalid application origin");
+  if (process.env.NODE_ENV === "production" && candidate.protocol !== "https:")
+    throw new ApiError(503, "Application origin must use HTTPS");
+  if (!["https:", "http:"].includes(candidate.protocol))
+    throw new ApiError(503, "Invalid application origin");
+  return candidate;
 }
 
 /** No cross-origin state mutation and no JSON CSRF through text/plain forms. */
 export function guardMutation(request: NextRequest): void {
-  if (request.headers.get("origin") !== appOrigin().origin) throw new ApiError(403, "Origin not allowed");
+  if (request.headers.get("origin") !== appOrigin(request).origin) throw new ApiError(403, "Origin not allowed");
   const ct = request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
   if (ct !== "application/json") throw new ApiError(415, "JSON content type required");
 }

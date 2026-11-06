@@ -413,7 +413,7 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
         provider.request({ method: "eth_chainId" }),
         apiSession(),
       ]);
-    if (rpcChain !== 18881 || version !== 2n || !registered || !code || code === "0x")
+    if (rpcChain !== 18881 || (version !== 2n && version !== 3n) || !registered || !code || code === "0x")
       throw new Error("Collection is not deployed by the reviewed M5 factory on Ultra Testnet");
     const [,end,unitPrice,,,,,cancelled] = phase;
     if (cancelled || phaseId === 0n || nonce !== chainNonce || valueWei !== requiredPayment(unitPrice, quantity))

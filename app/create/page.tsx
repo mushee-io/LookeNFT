@@ -1,266 +1,243 @@
 "use client";
-
-import { useEffect, useState, type FormEvent } from "react";
-import {
-  createPublicClient, decodeEventLog, encodeFunctionData, getAddress, http,
-  isAddress, parseEventLogs, type Address, type Hex
-} from "viem";
+import { useEffect,useState,type FormEvent } from "react";
+import Link from "next/link";
+import { createPublicClient, encodeFunctionData, getAddress, http, isAddress, parseAbi, parseEther, toHex, type Address, type Hex } from "viem";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
-import {
-  M4_DEPLOY_ENABLED, M4_CANCUN_VERIFIED, M4_FACTORY_ADDRESS, factoryAbi, collectionAbi,
-  validateCollectionDraft, type CollectionDraft, type ValidatedCollection
-} from "@/lib/m4/factory";
+import { previewMetadata } from "@/lib/m4/preview";
+import { factoryAbi,validateCollectionDraft,M4_FACTORY_ADDRESS,M4_CANCUN_VERIFIED,M4_DEPLOY_ENABLED,type CollectionDraft } from "@/lib/m4/factory";
 
-const rpc = createPublicClient({
-  transport: http(ULTRA_TESTNET.rpcUrl, { timeout: 12000, retryCount: 1 })
-});
-type Preflight = {
-  data: Hex;
-  predicted: Address;
-  config: ValidatedCollection;
-  creator: Address;
-  factory: Address;
+type Standard="erc721"|"erc1155";
+type Form={
+ standard:Standard;name:string;symbol:string;description:string;coverUrl:string;
+ metadataUri:string;totalCap:string;perIdCap:string;mintPriceUos:string;traits:string;
+ perWalletCap:string;royaltyPercent:string;
 };
-const initial: CollectionDraft = {
-  standard: "erc721",
-  name: "", symbol: "", uri: "", totalCap: "100",
-  perIdCap: "10", royaltyBps: "500", royaltyReceiver: "", salt: ""
+const defaults:Form={
+ standard:"erc1155",name:"",symbol:"",description:"",coverUrl:"",
+ metadataUri:"",totalCap:"10000",perIdCap:"10000",mintPriceUos:"0",traits:"",
+ perWalletCap:"3",royaltyPercent:"0"
 };
-function randomSalt(): Hex {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return ("0x" + Array.from(bytes, v => v.toString(16).padStart(2, "0")).join("")) as Hex;
+const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
+const ownerAbi=parseAbi(["function owner() view returns (address)"]);
+const deployAllowed=M4_CANCUN_VERIFIED&&M4_DEPLOY_ENABLED&&isAddress(M4_FACTORY_ADDRESS,{strict:false});
+
+function inspect(form:Form,wallet:string|null,salt:string){
+ if(!wallet||!isAddress(wallet,{strict:false}))throw Error("Connect the authorised Ultra Testnet wallet.");
+ if(form.name.trim().length<2||form.name.trim().length>90)throw Error("Collection name must be 2–90 characters.");
+ if(form.description.length>1200)throw Error("Description cannot exceed 1200 characters.");
+ if(form.coverUrl){
+  const cover=new URL(form.coverUrl);
+  if(cover.protocol!=="https:"||cover.username||cover.password||cover.hash)throw Error("Cover artwork needs a public HTTPS URL without credentials.");
+ }
+ if(!/^(0|[1-9][0-9]{0,3})(?:\.[0-9]{1,18})?$/.test(form.mintPriceUos))throw Error("Mint price must be 0–1000 UOS with at most 18 decimals.");
+ const price=parseEther(form.mintPriceUos);
+ if(price>1000n*10n**18n)throw Error("Mint price cannot exceed 1000 UOS.");
+ if(!/^[1-9][0-9]{0,3}$/.test(form.perWalletCap) || BigInt(form.perWalletCap)>1000n)
+  throw Error("Per-wallet mint limit must be 1–1000.");
+ if(BigInt(form.perWalletCap)>BigInt(form.totalCap||"0"))
+  throw Error("Per-wallet mint limit cannot exceed the collection supply.");
+ const percent=Number(form.royaltyPercent);
+ if(!/^(?:0|[1-9]|10)(?:\.[0-9]{1,2})?$/.test(form.royaltyPercent)||!Number.isFinite(percent)||percent>10)
+  throw Error("Royalty must be between 0 and 10 percent (up to two decimal places).");
+ const draft:CollectionDraft={
+  standard:form.standard,name:form.name,symbol:form.symbol,uri:form.metadataUri,
+  totalCap:form.totalCap,perIdCap:form.perIdCap,
+  royaltyBps:String(Math.round(percent*100)),royaltyReceiver:wallet,salt
+ };
+ return {validated:validateCollectionDraft(draft),price};
+}
+async function readAdmin(res:Response){
+ const value=await res.json() as {error?:string;collections?:unknown[]};
+ if(!res.ok)throw Error(value.error||"Admin request was rejected.");
+ return value;
 }
 
-export default function CreatePage() {
-  const wallet = useWalletSession();
-  const [draft, setDraft] = useState<CollectionDraft>(initial);
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [reviewed, setReviewed] = useState<Preflight | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [txHash, setTxHash] = useState<Hex | null>(null);
-  const [manifest, setManifest] = useState<Record<string, unknown> | null>(null);
+export default function CreateCollectionPage(){
+ const wallet=useWalletSession();
+ const [authorised,setAuthorised]=useState<boolean|null>(null);
+ const [form,setForm]=useState<Form>(defaults);
+ const [salt,setSalt]=useState("");
+ const [stage,setStage]=useState<"edit"|"preview">("edit");
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState("");
+ const [notice,setNotice]=useState("");
+ const [txHash,setTxHash]=useState<Hex|null>(null);
+ const [confirmedAddress,setConfirmedAddress]=useState("");
+ const [manualAddress,setManualAddress]=useState("");
+ const [published,setPublished]=useState(false);
+ const [localArtwork,setLocalArtwork]=useState<string|null>(null);
+ const [selectedFile,setSelectedFile]=useState(false);
+ const [artworkCount,setArtworkCount]=useState(0);
 
-  // Any change to draft, active account or chain invalidates old signed calldata.
-  useEffect(() => {
-    setReviewed(null);
-    setAcknowledged(false);
-  }, [draft, wallet.address, wallet.chainId]);
-
-  function edit<K extends keyof CollectionDraft>(key: K, value: CollectionDraft[K]) {
-    setDraft(old => ({ ...old, [key]: value }));
-    setError(null);
-    setTxHash(null);
-    setManifest(null);
-  }
-
-  async function review(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    setReviewed(null);
-    setTxHash(null);
-    setManifest(null);
-    try {
-      if (!wallet.address || wallet.chainId !== 18881) throw new Error("Connect an Ultra EVM Testnet account first");
-      const next = { ...draft, royaltyReceiver: draft.royaltyReceiver || wallet.address };
-      const config = validateCollectionDraft(next);
-      if (!isAddress(M4_FACTORY_ADDRESS, { strict: false })) throw new Error("Operator has not configured a verified Testnet factory address");
-      const factory = getAddress(M4_FACTORY_ADDRESS);
-      if (await rpc.getChainId() !== 18881) throw new Error("RPC did not report Ultra EVM Testnet");
-      const bytecode = await rpc.getCode({ address: factory });
-      if (!bytecode || bytecode === "0x") throw new Error("Factory has no deployed bytecode on Ultra EVM Testnet");
-      const [factoryChain, factoryVersion] = await Promise.all([
-        rpc.readContract({ address: factory, abi: factoryAbi, functionName: "ULTRA_TESTNET_CHAIN_ID" }),
-        rpc.readContract({ address: factory, abi: factoryAbi, functionName: "VERSION" })
-      ]);
-      if (factoryChain !== 18881n || factoryVersion !== 2n)
-        throw new Error("Deployed factory identity/version mismatch");
-      const creator = getAddress(wallet.address);
-      const predicted = config.standard === "erc721"
-        ? await rpc.readContract({
-          address: factory, abi: factoryAbi, functionName: "predictERC721",
-          args: [creator, config.name, config.symbol, config.uri, config.totalCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
-        })
-        : await rpc.readContract({
-          address: factory, abi: factoryAbi, functionName: "predictERC1155",
-          args: [creator, config.uri, config.totalCap, config.perIdCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
-        });
-      if (await rpc.getCode({ address: predicted }) !== undefined)
-        throw new Error("Predicted CREATE2 address is already deployed; generate a new salt");
-      const data = config.standard === "erc721"
-        ? encodeFunctionData({
-          abi: factoryAbi, functionName: "createERC721",
-          args: [config.name, config.symbol, config.uri, config.totalCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
-        })
-        : encodeFunctionData({
-          abi: factoryAbi, functionName: "createERC1155",
-          args: [config.uri, config.totalCap, config.perIdCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
-        });
-      setReviewed({ config, predicted, data, creator, factory });
-    } catch(e) {
-      setError(e instanceof Error ? e.message : "Unable to review deployment");
-    } finally { setBusy(false); }
-  }
-
-  async function deploy() {
-    if (!reviewed || !acknowledged || !M4_DEPLOY_ENABLED ||
-        !wallet.authenticated || wallet.pending || busy) return;
-    setError(null);
-    setBusy(true);
-    setManifest(null);
-    try {
-      if (wallet.address?.toLowerCase() !== reviewed.creator.toLowerCase() || wallet.chainId !== 18881)
-        throw new Error("Wallet changed since the last approved review");
-      // Only this user click may invoke eth_sendTransaction and the wallet must ask for approval.
-      const hash = await wallet.submitFactoryDeployment(reviewed.factory, reviewed.data);
-      setTxHash(hash);
-      const receipt = await rpc.waitForTransactionReceipt({ hash, confirmations: 2, timeout: 180_000 });
-      if (receipt.status !== "success") throw new Error("Wallet transaction failed on Testnet");
-      const transaction = await rpc.getTransaction({ hash });
-      if (transaction.chainId !== 18881 || transaction.from.toLowerCase() !== reviewed.creator.toLowerCase() ||
-          transaction.to?.toLowerCase() !== reviewed.factory.toLowerCase() ||
-          transaction.input.toLowerCase() !== reviewed.data.toLowerCase())
-        throw new Error("Receipt does not match reviewed creator, chain, factory and calldata");
-      const events = parseEventLogs({ abi: factoryAbi, logs: receipt.logs, eventName: "CollectionCreated" });
-      const event = events.find(e =>
-        e.address.toLowerCase() === reviewed.factory.toLowerCase() &&
-        e.args.creator.toLowerCase() === reviewed.creator.toLowerCase() &&
-        e.args.collection.toLowerCase() === reviewed.predicted.toLowerCase() &&
-        Number(e.args.standard) === (reviewed.config.standard === "erc721" ? 1 : 2)
-      );
-      if (!event) throw new Error("Confirmed transaction lacks the expected factory CollectionCreated event");
-      const [deployedCode, owner, registered, interfaceClaim] = await Promise.all([
-        rpc.getCode({ address: reviewed.predicted }),
-        rpc.readContract({ address: reviewed.predicted, abi: collectionAbi, functionName: "owner" }),
-        rpc.readContract({ address: reviewed.factory, abi: factoryAbi, functionName: "isCollection", args: [reviewed.predicted] }),
-        rpc.readContract({
-          address: reviewed.predicted, abi: collectionAbi, functionName: "supportsInterface",
-          args: [reviewed.config.standard === "erc721" ? "0x80ac58cd" : "0xd9b67a26"]
-        })
-      ]);
-      if (!deployedCode || deployedCode === "0x" || owner.toLowerCase() !== reviewed.creator.toLowerCase() ||
-          !registered || !interfaceClaim) throw new Error("On-chain collection code, ownership or interface validation failed");
-      setManifest({
-        schema: "lookenft/m4-testnet-deployment/v1",
-        verificationLevel: "primary-rpc-receipt-only",
-        chainId: 18881, standard: reviewed.config.standard,
-        factory: reviewed.factory, creator: reviewed.creator, collection: reviewed.predicted,
-        txHash: hash, blockNumber: receipt.blockNumber.toString(), blockHash: receipt.blockHash,
-        supplyCap: reviewed.config.totalCap.toString(),
-        perIdCap: reviewed.config.perIdCap.toString(), royaltyBps: reviewed.config.royaltyBps,
-        royaltyReceiver: reviewed.config.royaltyReceiver,
-        metadataURI: reviewed.config.uri, metadataMutableUntilFrozen: true,
-        sourceVerified: false, independentlyAudited: false, independentExplorerVerified: false,
-        note: "No independent verification until operator CLI and explorer checks pass."
-      });
-    } catch(e) {
-      setError(e instanceof Error ? e.message : "Deployment or receipt verification failed");
-    } finally { setBusy(false); }
-  }
-
-  const gateMessage = !M4_CANCUN_VERIFIED
-    ? "Cancun MCOPY/PUSH0 compatibility is not independently confirmed by the operator."
-    : !M4_DEPLOY_ENABLED
-    ? "Deployment is disabled by the M4 operator gate."
-    : !isAddress(M4_FACTORY_ADDRESS, { strict: false })
-      ? "The authorised Testnet factory address is not configured."
-      : !wallet.address || wallet.chainId !== 18881
-        ? "Connect an Ultra EVM Testnet wallet."
-        : !wallet.authenticated ? "Sign in with your wallet before deploying."
-          : "A separate wallet approval is required for every Testnet deployment.";
-
-  return (
-    <section className="interior creator-page">
-      <p className="eyebrow">LOOKE NFT / CREATOR STUDIO · ULTRA EVM TESTNET</p>
-      <h1>Make your collection.</h1>
-      <p className="interior-copy">
-        Prepare a non-upgradeable ERC-721 or ERC-1155 collection. This M4 builder
-        performs read-only preflight checks; actual deployment is disabled unless
-        an operator separately approves a real Testnet factory and the connected
-        creator confirms the transaction inside their own wallet.
-      </p>
-      <div className="index-warning" role="status">{gateMessage} {manifest ? "Verified from primary RPC; independent operator checks still required." : "No collection has been deployed by this page."}</div>
-
-      <form className="creator-form" onSubmit={e => void review(e)}>
-        <div className="creator-form-grid">
-          <label>Token standard
-            <select value={draft.standard} onChange={e=>edit("standard",e.target.value as CollectionDraft["standard"])}>
-              <option value="erc721">ERC-721 · Unique artworks</option>
-              <option value="erc1155">ERC-1155 · Editions</option>
-            </select>
-          </label>
-          {draft.standard==="erc721" && <>
-            <label>Collection name <input maxLength={80} value={draft.name} onChange={e=>edit("name",e.target.value)} placeholder="Looke Originals"/></label>
-            <label>Symbol <input maxLength={15} value={draft.symbol} onChange={e=>edit("symbol",e.target.value)} placeholder="LKO"/></label>
-          </>}
-          <label className="creator-wide">Metadata URI
-            <input maxLength={512} value={draft.uri} onChange={e=>edit("uri",e.target.value)}
-              placeholder={draft.standard==="erc721"?"ipfs://CID/metadata/":"ipfs://CID/{id}.json"}/>
-            <span>Use uploaded, pinned metadata from a trusted HTTPS/IPFS host. M6 will provide media authorisation and moderation.</span>
-          </label>
-          <label>Total lifetime supply cap
-            <input inputMode="numeric" value={draft.totalCap} onChange={e=>edit("totalCap",e.target.value)} />
-          </label>
-          {draft.standard==="erc1155" && <label>Maximum units per token ID
-            <input inputMode="numeric" value={draft.perIdCap} onChange={e=>edit("perIdCap",e.target.value)}/>
-          </label>}
-          <label>Royalty basis points (0–1000)
-            <input inputMode="numeric" value={draft.royaltyBps} onChange={e=>edit("royaltyBps",e.target.value)}/>
-            <span>500 = 5%. ERC-2981 signals royalties; it cannot force third-party payment.</span>
-          </label>
-          <label>Royalty recipient wallet
-            <input value={draft.royaltyReceiver} onChange={e=>edit("royaltyReceiver",e.target.value)}
-              placeholder={wallet.address??"Connect a wallet to default to its address"}/>
-          </label>
-          <label className="creator-wide">Unique deployment salt
-            <div className="salt-row">
-              <input readOnly value={draft.salt} placeholder="Generate once for deterministic CREATE2 address"/>
-              <button type="button" className="secondary-link" onClick={()=>edit("salt",randomSalt())}>Generate salt</button>
-            </div>
-          </label>
-        </div>
-        <button type="submit" className="primary-link" disabled={busy || wallet.pending}>
-          {busy ? "Reviewing…" : "Review Testnet deployment (read-only)"}
-        </button>
-      </form>
-
-      {reviewed && <div className="creator-preflight">
-        <h2>Review before wallet approval</h2>
-        <dl>
-          <div><dt>Creator</dt><dd>{reviewed.creator}</dd></div>
-          <div><dt>Factory</dt><dd>{reviewed.factory}</dd></div>
-          <div><dt>Predicted collection address</dt><dd>{reviewed.predicted}</dd></div>
-          <div><dt>Standard</dt><dd>{reviewed.config.standard.toUpperCase()}</dd></div>
-          <div><dt>Maximum total units</dt><dd>{reviewed.config.totalCap.toString()}</dd></div>
-          <div><dt>Lifetime per-ID cap</dt><dd>{reviewed.config.perIdCap.toString()}</dd></div>
-          <div><dt>Royalty</dt><dd>{reviewed.config.royaltyBps/100}% (ERC-2981 signalling)</dd></div>
-        </dl>
-        <p className="wallet-note">Ownership is assigned to the approving wallet. Creator-only reserved mint functions exist in the contract; public minting, sales and token purchases are not enabled by M4.</p>
-        <label className="creator-ack">
-          <input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
-          I have reviewed the Testnet contract, chain, supply, royalty and wallet gas fees; the collection will be immutable except for owner-controlled metadata changes until frozen.
-        </label>
-        <button className="primary-link" type="button" disabled={
-          !acknowledged || !M4_DEPLOY_ENABLED || !M4_CANCUN_VERIFIED || !wallet.authenticated ||
-          wallet.pending || busy || wallet.chainId !== 18881
-        } onClick={()=>void deploy()}>
-          {busy?"Checking receipt…":"Confirm deployment in wallet"}
-        </button>
-      </div>}
-
-      {txHash && <p className="index-warning">Wallet submitted Testnet transaction:
-        {" "}<a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a>.
-        A submitted transaction does not prove deployment until receipt and contract checks complete.</p>}
-      {error && <p role="alert" className="index-warning">{error}</p>}
-      {manifest && <div className="creator-preflight">
-        <h2>Primary-RPC observed deployment manifest</h2>
-        <p className="wallet-note">Independently reconcile this against Blockscout and another RPC before registering in M3.</p>
-        <pre className="creator-json">{JSON.stringify(manifest,null,2)}</pre>
-        <button className="secondary-link" type="button" onClick={()=>void navigator.clipboard.writeText(JSON.stringify(manifest,null,2))}>Copy manifest</button>
-      </div>}
-    </section>
-  );
+ useEffect(()=>{
+  const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
+ },[]);
+ useEffect(()=>()=>{if(localArtwork)URL.revokeObjectURL(localArtwork);},[localArtwork]);
+ useEffect(()=>{
+  setAuthorised(null);
+  if(!wallet.authenticated||wallet.chainId!==18881){setAuthorised(false);return;}
+  const abort=new AbortController();
+  fetch("/api/admin/collections",{cache:"no-store",credentials:"same-origin",signal:abort.signal})
+   .then(r=>{if(!abort.signal.aborted)setAuthorised(r.ok);})
+   .catch(()=>{if(!abort.signal.aborted)setAuthorised(false);});
+  return()=>abort.abort();
+ },[wallet.authenticated,wallet.address,wallet.chainId]);
+ const put=(key:keyof Form,value:string)=>{
+  setForm(old=>({...old,[key]:value,...(key==="totalCap"&&old.standard==="erc1155"?{perIdCap:value}:{})}));
+  setConfirmedAddress("");setTxHash(null);setPublished(false);setError("");setNotice("");
+ };
+ function preview(event:FormEvent){
+  event.preventDefault();setError("");setNotice("");
+  try{previewMetadata(form,Boolean(localArtwork));setStage("preview");window.scrollTo({top:0,behavior:"smooth"});}
+  catch(e){setError(e instanceof Error?e.message:"Invalid collection settings.");}
+ }
+ async function deploy(){
+  if(!authorised)return;
+  setError("");setNotice("");setBusy(true);
+  try{
+   const {validated}=inspect(form,wallet.address,salt);
+   if(!deployAllowed||!isAddress(M4_FACTORY_ADDRESS,{strict:false}))
+    throw Error("Operator-only V3 factory deployment is not enabled. An independently verified factory and Testnet approval are required.");
+   const factory=getAddress(M4_FACTORY_ADDRESS);
+   const owner=getAddress(validated.royaltyReceiver);
+   const [chainId,version,factoryOwner]=await Promise.all([
+    rpc.getChainId(),
+    rpc.readContract({address:factory,abi:factoryAbi,functionName:"VERSION"}),
+    rpc.readContract({address:factory,abi:ownerAbi,functionName:"owner"})
+   ]);
+   if(chainId!==18881||version!==3n||factoryOwner.toLowerCase()!==owner.toLowerCase())
+    throw Error("Configured factory is not the approved V3 contract controlled by this operator wallet.");
+   const expected=validated.standard==="erc721"
+    ? await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC721",
+      args:[owner,validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
+    : await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC1155",
+      args:[owner,validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
+   const calldata=validated.standard==="erc721"
+    ? encodeFunctionData({abi:factoryAbi,functionName:"createERC721",
+      args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
+    : encodeFunctionData({abi:factoryAbi,functionName:"createERC1155",
+      args:[validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
+   const tx=await wallet.submitFactoryDeployment(factory,calldata);
+   setTxHash(tx);setNotice("Transaction submitted. Waiting for Ultra Testnet confirmation; collection is NOT yet published.");
+   const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
+   if(receipt.status!=="success")throw Error("Ultra Testnet rejected the deployment transaction.");
+   const [code,registered]=await Promise.all([
+    rpc.getCode({address:expected}),
+    rpc.readContract({address:factory,abi:factoryAbi,functionName:"isCollection",args:[expected]})
+   ]);
+   if(!code||code==="0x"||!registered)throw Error("Deployment transaction confirmed, but the predicted collection was not verified at the V3 factory.");
+   setConfirmedAddress(expected);
+   setManualAddress(expected);
+   setNotice("Collection deployment confirmed at "+expected+". Before publishing, register it with the approved NFT indexer after its confirmation window.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to confirm Ultra Testnet deployment.");}
+  finally{setBusy(false);}
+ }
+ async function publishCollection(){
+  if(!authorised)return;
+  setError("");setNotice("");setBusy(true);
+  try{
+   inspect(form,wallet.address,salt);
+   if(selectedFile&&!form.coverUrl.trim())throw Error("The locally selected cover is only a preview. Host and approve the artwork, then enter its HTTPS URL before publishing.");
+   const address=(confirmedAddress||manualAddress).trim();
+   if(!isAddress(address,{strict:false}))throw Error("Deploy a collection or enter an already verified collection contract address first.");
+   if(txHash&&confirmedAddress&&address.toLowerCase()===confirmedAddress.toLowerCase()){
+    await readAdmin(await fetch("/api/admin/collections/register",{
+     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+     body:JSON.stringify({address,txHash,standard:form.standard})
+    }));
+   }
+   await readAdmin(await fetch("/api/admin/collections",{
+    method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({address,title:form.name.trim(),description:form.description.trim(),
+      coverUrl:form.coverUrl.trim(),phaseId:"1"})
+   }));
+   await readAdmin(await fetch("/api/admin/collections",{
+    method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({address,action:"publish"})
+   }));
+   setPublished(true);setNotice("The official collection preview is published. Minting remains disabled until separate on-chain phase configuration and release approval.");
+  }catch(e){setError(e instanceof Error?e.message:"Publication was blocked.");}
+  finally{setBusy(false);}
+ }
+ const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
+ return <section className="operator-page operator-create-page">
+  <Link className="curated-back" href="/explore">← NFT collections</Link>
+  <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
+  <h1>Create an NFT collection</h1>
+  <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Drafts do not mint, deploy or charge anyone; real publishing is operator-only.</p>
+  {authorised===false&&<p className="operator-note"><strong>Design preview mode.</strong> Upload artwork, create a local preview, and inspect generated metadata without signing in. Only the configured operator wallet can deploy or publish a genuine NFT collection.</p>}
+  {authorised===null&&<p className="operator-note">Checking publisher permissions; local previews are available immediately.</p>}
+  <div className="creator-steps" aria-label="Creation stages"><span className={stage==="edit"?"active":""}>1. Collection details</span><span className={stage==="preview"?"active":""}>2. Preview</span><span>3. Publish to market</span></div>
+  {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
+   <div className="creator-fields">
+    <label>Collection name<input required maxLength={90} value={form.name} onChange={e=>put("name",e.target.value)} placeholder="Ultra Punks"/></label>
+    <label>NFT standard<select value={form.standard} onChange={e=>put("standard",e.target.value)}>
+      <option value="erc721">ERC-721 · unique NFTs</option><option value="erc1155">ERC-1155 · editions</option>
+    </select></label>
+    {form.standard==="erc721"&&<label>Symbol<input required maxLength={15} value={form.symbol} onChange={e=>put("symbol",e.target.value)} placeholder="PUNKS"/></label>}
+    <label>Total supply<input required type="number" min={1} max={1000000} step={1} value={form.totalCap} onChange={e=>put("totalCap",e.target.value)}/></label>
+    {form.standard==="erc1155"&&<label>Copies per token ID<input required type="number" min={1} max={1000000} step={1} value={form.perIdCap} onChange={e=>put("perIdCap",e.target.value)}/></label>}
+    <label>Planned mint price (UOS)<input required inputMode="decimal" value={form.mintPriceUos} onChange={e=>put("mintPriceUos",e.target.value)} placeholder="0"/></label>
+    <label>Planned limit per wallet<input required type="number" min={1} max={1000} step={1} value={form.perWalletCap} onChange={e=>put("perWalletCap",e.target.value)}/></label>
+    <label>Creator royalty (%)<input required inputMode="decimal" value={form.royaltyPercent} onChange={e=>put("royaltyPercent",e.target.value)} placeholder="0"/></label>
+    <label>Upload artwork for local preview<input type="file" accept="image/png,image/jpeg,image/webp" multiple
+      onChange={e=>{
+       const files=Array.from(e.target.files||[]);
+        if(!files.length){setLocalArtwork(null);setSelectedFile(false);setArtworkCount(0);return;}
+        if(files.length>20||files.some(file=>!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>10*1024*1024)){
+          setError("Choose up to 20 PNG, JPEG or WebP images, each under 10 MB.");e.target.value="";return;
+        }
+        setLocalArtwork(URL.createObjectURL(files[0]));setSelectedFile(true);setArtworkCount(files.length);setError("");
+      }}/></label>
+    {artworkCount>0&&<p className="creator-wide operator-note">{artworkCount} artwork file{artworkCount===1?"":"s"} selected for local preview. Nothing has been uploaded to NFT storage.</p>}
+     <label>Approved cover image URL<input value={form.coverUrl} onChange={e=>put("coverUrl",e.target.value)} placeholder="https://approved-host.example/cover.png"/></label>
+    <label className="creator-wide">Metadata URI (optional for preview; required before deployment) {form.standard==="erc1155"?"(must contain {id})":"(base URI for your token metadata)"}
+      <input value={form.metadataUri} onChange={e=>put("metadataUri",e.target.value)}
+       placeholder={form.standard==="erc721"?"ipfs://your-cid/":"ipfs://your-cid/{id}.json"}/></label>
+    <label className="creator-wide">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={e=>put("description",e.target.value)} placeholder="Tell collectors about this drop…"/></label>
+     <label className="creator-wide">Traits (optional, one Name: Value per line)<textarea rows={4} value={form.traits} onChange={e=>put("traits",e.target.value)} placeholder="Background: Pink"/></label>
+   </div>
+   <p className="operator-note"><strong>10,000 supply preselected.</strong> One image + ERC-1155 means 10,000 copies of an edition, not 10,000 unique artworks. Unique ERC-721 imagery and rarity require real image layers and metadata. Local preview files are not uploaded. On-chain publishing needs verified hosted metadata and operator authorization.</p>
+   <button type="submit">Preview collection →</button>
+  </form>:<>
+   <div className="creator-preview">
+    <div className="creator-preview-image">{(localArtwork||form.coverUrl)?<img src={localArtwork||form.coverUrl} alt="Draft collection cover"/>:<span>◇<small>Cover image not set</small></span>}</div>
+    <div className="creator-preview-info"><p className="curated-overline">UNPUBLISHED DRAFT · PREVIEW ONLY</p>
+     <h2>{form.name}</h2><p>{form.description||"No description yet."}</p>
+     <div className="creator-preview-stats"><span>Network<strong>Ultra EVM Testnet</strong></span><span>Standard<strong>{form.standard.toUpperCase()}</strong></span><span>Planned supply<strong>{Number(form.totalCap).toLocaleString()}</strong></span><span>Planned mint price<strong>{form.mintPriceUos} UOS</strong></span><span>Per wallet (planned)<strong>{form.perWalletCap}</strong></span><span>Royalty<strong>{form.royaltyPercent}%</strong></span><span>Rarity<strong>{design?.rarity}</strong></span></div>
+    </div>
+   </div>
+   <div className="creator-publish-panel"><h2>Automatically prepared NFT metadata</h2>
+     <p>An illustrative metadata record generated from your artwork and attributes. It is not a hosted token, minted inventory or verified rarity ranking.</p>
+     <pre className="creator-json">{JSON.stringify(design?.metadata,null,2)}</pre>
+     <button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(design?.metadata,null,2));}}>Copy example metadata JSON</button>
+    </div>
+    <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
+   {authorised===true?<div className="creator-publish-panel">
+    <h2>Deploy to Ultra Testnet</h2>
+    <p>Only your authorised wallet can approve a transaction from the owner-only V3 factory. NFT creation on Ultra is a separate blockchain transaction, not the same as publishing a catalogue card.</p>
+    <button type="button" disabled={busy||!deployAllowed||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
+    {!deployAllowed&&<p className="operator-note">On-chain deployment is currently locked until the V3 factory is deployed and verified and the independent M4 security gates are enabled. The editor and preview remain available.</p>}
+    {txHash&&<p className="creator-break">Transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a></p>}
+    {confirmedAddress&&<p className="creator-break">Verified collection address: <strong>{confirmedAddress}</strong></p>}
+   </div>:<div className="creator-publish-panel">
+    <h2>Publishing requires the LookeNFT admin wallet</h2>
+    <p>Your 10,000-edition artwork and metadata preview are ready locally. Publishing a collection needs your complete authorized wallet address, a verified Ultra contract and hosted metadata.</p>
+    {wallet.address&&<button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(wallet.address||"");}}>Copy my full connected wallet address</button>}
+    <p><button type="button" disabled>Publish to Ultra (operator access required)</button></p>
+    <p className="operator-note">This test preview does not broadcast a transaction, mint NFTs, or publish anything to mainnet.</p>
+   </div>}
+   {authorised===true&&<div className="creator-publish-panel">
+    <h2>Publish official preview to the market</h2>
+    <p>After deployment and 12 Testnet confirmations, this tool verifies your factory event and indexer record before publishing the collection preview to the gallery. Already registered collections can also be entered below. Minting stays disabled.</p>
+    <label>Verified collection contract address<input value={confirmedAddress||manualAddress} onChange={e=>{setManualAddress(e.target.value);setPublished(false);}} placeholder="0x…"/></label>
+    <button type="button" disabled={busy||published||!(confirmedAddress||manualAddress)} onClick={()=>void publishCollection()}>{published?"Published ✓":busy?"Publishing…":"Publish to LookeNFT market"}</button>
+    {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent((confirmedAddress||manualAddress).trim())}>Open public collection preview ↗</Link></p>}
+    <p className="operator-note">Minting remains closed until a valid priced phase is scheduled on-chain and M5/M12 financial execution has been independently approved. The price above is not a live on-chain quote.</p>
+   </div>}
+  </>}
+  {notice&&<p role="status" className="operator-note">{notice}</p>}
+  {error&&<p role="alert" className="operator-error">{error}</p>}
+ </section>;
 }

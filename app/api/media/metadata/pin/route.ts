@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/server/auth";
+import { requireOperator } from "@/lib/server/curation";
 import { getDb } from "@/lib/server/db";
 import { ApiError,apiFailure,guardMutation,noStore,parseBody } from "@/lib/server/http";
 import { canonicalJSON } from "@/lib/m6/metadata";
@@ -12,7 +12,7 @@ export async function POST(request:NextRequest){
   let id:string|null=null,owner:string|null=null;
   try{
     guardMutation(request);
-    const session=await requireSession(request);owner=session.wallet;
+    const session={ wallet: await requireOperator(request) };owner=session.wallet;
     if(!pinningReady())throw new ApiError(503,"Operator-approved IPFS metadata pinning is not enabled");
     const body=await parseBody(request,500);
     if(typeof body.id!=="string"||!/^[a-f0-9-]{36}$/i.test(body.id))
