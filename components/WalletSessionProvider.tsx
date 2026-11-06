@@ -2,8 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
-import { createPublicClient, decodeFunctionData, http, isAddress, toFunctionSelector, toHex, type Address, type Hex } from "viem";
+import { createPublicClient, decodeFunctionData, encodeFunctionData, http, isAddress, toFunctionSelector, toHex, verifyTypedData, type Address, type Hex } from "viem";
 import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
+import { M7_MARKET_ADDRESS,marketAbi,marketTypes,listingDomain,hashListing,m7Gate,type Listing } from "@/lib/m7/market";
 import { describeWalletError, ensureChain, hexChain, validAccounts, type Eip1193Provider, type WalletOption } from "@/lib/wallet-provider";
 
 type Session = { authenticated: boolean; wallet: string; chainId: number; expiresAt: string; profileId: string | null };
@@ -25,6 +26,9 @@ type WalletContextValue = {
   unlinkProfile: () => Promise<void>;
   submitFactoryDeployment: (factoryAddress: string, calldata: Hex) => Promise<Hex>;
   submitMint: (collection: string, calldata: Hex, valueWei: bigint) => Promise<Hex>;
+  signMarketListing: (listing: Listing) => Promise<Hex>;
+  submitMarketBuy: (listing: Listing, signature: Hex) => Promise<Hex>;
+  cancelMarketNonce: (nonce: bigint) => Promise<Hex>;
   dismissPairing: () => void;
 };
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -427,11 +431,146 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
+
+  /** M7 source-verified, single-wallet EIP712 signing, OFF by default. */
+  async function signMarketListing(listing: Listing): Promise<Hex> {
+    const gate = m7Gate("list");
+    if (gate || process.env.NEXT_PUBLIC_M7_ENABLE_LISTINGS!=="true")
+      throw new Error(gate || "M7 listing signature creation disabled");
+    const provider=providerRef.current, wallet=address, revision=sequence.current;
+    if (!provider||!wallet||!session||pending||listing.seller.toLowerCase()!==wallet.toLowerCase())
+      throw new Error("Explicitly connect and authenticate the listing seller");
+    const market=M7_MARKET_ADDRESS as Address;
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [rpcChain,marketCode,marketVersion,walletAccounts,walletChain,fresh]=await Promise.all([
+      rpc.getChainId(),rpc.getCode({address:market}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"VERSION"}),
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"}),apiSession()
+    ]);
+    if (rpcChain!==18881||!marketCode||marketCode==="0x"||marketVersion!==1n||
+      validAccounts(walletAccounts)[0]?.toLowerCase()!==wallet.toLowerCase()||
+      hexChain(walletChain)!==18881||revision!==sequence.current||
+      fresh?.wallet.toLowerCase()!==wallet.toLowerCase()||fresh?.chainId!==18881)
+      throw new Error("Seller wallet, deployed market, authenticated session or chain changed");
+    const domain=listingDomain(market);
+    const typed={
+      types:{
+        EIP712Domain:[
+          {name:"name",type:"string"},{name:"version",type:"string"},
+          {name:"chainId",type:"uint256"},{name:"verifyingContract",type:"address"}
+        ],
+        Listing:marketTypes.Listing
+      },
+      domain,primaryType:"Listing",message:listing
+    };
+    setPending(true);
+    try{
+      const signed=await provider.request({
+        method:"eth_signTypedData_v4",
+        params:[wallet,JSON.stringify(typed,(_k,value)=>typeof value==="bigint"?value.toString():value)]
+      });
+      if(typeof signed!=="string"||!/^0x[0-9a-fA-F]{130}$/.test(signed))
+        throw new Error("Wallet did not return an EOA typed-data signature");
+      const valid=await verifyTypedData({
+        address:wallet as Address,domain,types:marketTypes,primaryType:"Listing",
+        message:listing,signature:signed as Hex
+      });
+      if(!valid||sequence.current!==revision)throw new Error("Wallet signature or session changed during review");
+      return signed as Hex;
+    }finally{setPending(false);}
+  }
+
+  /** M7: separate user-approved purchase. No unattended native UOS settlement. */
+  async function submitMarketBuy(listing:Listing,signature:Hex):Promise<Hex>{
+    const gate=m7Gate("buy");
+    if(gate||process.env.NEXT_PUBLIC_M7_ENABLE_SETTLEMENT!=="true")
+      throw new Error(gate||"M7 financial execution disabled");
+    const market=M7_MARKET_ADDRESS as Address;
+    const provider=providerRef.current,wallet=address,revision=sequence.current;
+    if(!provider||!wallet||!session||pending||ACTIVE_NETWORK.chainId!==18881||
+      wallet.toLowerCase()===listing.seller.toLowerCase())
+      throw new Error("Connect a different authenticated Testnet buyer wallet");
+    if(!/^0x[0-9a-fA-F]{130}$/.test(signature))throw new Error("Genuine seller signature required");
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [chain,code,version,onchainHash,fillable,quote,accounts,walletChain,fresh]=await Promise.all([
+      rpc.getChainId(),rpc.getCode({address:market}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"VERSION"}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"hashListing",args:[listing]}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"isFillable",args:[listing,signature]}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"quote",args:[listing]}),
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"}),apiSession()
+    ]);
+    if(chain!==18881||!code||code==="0x"||version!==1n||
+      hashListing(listing,market).toLowerCase()!==onchainHash.toLowerCase()||!fillable)
+      throw new Error("Market or signed NFT offer cannot be verified on real Testnet");
+    const payment=listing.unitPriceWei*listing.quantity;
+    if(payment!==quote[0]||payment===0n||payment>1000n*10n**18n||
+      quote[1]+quote[3]+quote[4]!==payment||
+      (listing.reservedBuyer!=="0x0000000000000000000000000000000000000000"&&
+      listing.reservedBuyer.toLowerCase()!==wallet.toLowerCase()))
+      throw new Error("NFT UOS pricing, fees, royalties or reserved buyer mismatch");
+    if(validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase()||
+      hexChain(walletChain)!==18881||revision!==sequence.current||
+      fresh?.wallet.toLowerCase()!==wallet.toLowerCase()||fresh?.chainId!==18881)
+      throw new Error("Buyer wallet, chain or server session changed");
+    const call=encodeFunctionData({abi:marketAbi,functionName:"buy",args:[listing,signature]});
+    await rpc.simulateContract({
+      address:market,abi:marketAbi,functionName:"buy",
+      args:[listing,signature],account:wallet as Address,value:payment
+    });
+    if(sequence.current!==revision)throw new Error("Wallet changed before explicit purchase");
+    setPending(true);
+    try {
+      const tx=await provider.request({
+        method:"eth_sendTransaction",
+        params:[{from:wallet,to:market,data:call,value:toHex(payment)}]
+      });
+      if(typeof tx!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(tx))
+        throw new Error("Wallet returned no signed transaction hash");
+      return tx as Hex;
+    }finally{setPending(false);}
+  }
+
+  /** Explicit seller cancellation; separate operator-approved protective action. */
+  async function cancelMarketNonce(nonce:bigint):Promise<Hex>{
+    if(process.env.NEXT_PUBLIC_M7_ENABLE_CANCELLATION!=="true"||
+      process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED!=="true"||
+      ACTIVE_NETWORK.chainId!==18881||!isAddress(M7_MARKET_ADDRESS))
+      throw new Error("M7 on-chain cancellation is disabled until verified Testnet operator approval");
+    const provider=providerRef.current,wallet=address,revision=sequence.current;
+    if(!provider||!wallet||!session||pending)throw new Error("Seller sign-in required");
+    const market=M7_MARKET_ADDRESS as Address;
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [version,used,floor,accounts,walletChain,fresh]=await Promise.all([
+      rpc.readContract({address:market,abi:marketAbi,functionName:"VERSION"}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"invalidNonces",args:[wallet as Address,nonce]}),
+      rpc.readContract({address:market,abi:marketAbi,functionName:"minimumNonce",args:[wallet as Address]}),
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"}),apiSession()
+    ]);
+    if(version!==1n||used||nonce<floor||
+      validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase()||
+      hexChain(walletChain)!==18881||revision!==sequence.current||
+      fresh?.wallet.toLowerCase()!==wallet.toLowerCase()||fresh?.chainId!==18881)
+      throw new Error("Seller nonce, market or wallet/session preflight failed");
+    setPending(true);
+    try{
+      const tx=await provider.request({
+        method:"eth_sendTransaction",
+        params:[{from:wallet,to:market,data:encodeFunctionData({
+          abi:marketAbi,functionName:"cancelNonce",args:[nonce]
+        }),value:"0x0"}]
+      });
+      if(typeof tx!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(tx))
+        throw new Error("Cancellation wallet returned no transaction hash");
+      return tx as Hex;
+    }finally{setPending(false);}
+  }
+
   return (
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, submitFactoryDeployment, submitMint, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>
