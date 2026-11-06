@@ -209,3 +209,8 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
 .creator-page .studio-assets .studio-asset p,.creator-page .studio-assets .studio-asset strong{overflow-wrap:anywhere}
 .creator-page .creator-form textarea{width:100%;max-width:100%;font:inherit;resize:vertical}
 @media(max-width:760px){.creator-page .studio-grid{grid-template-columns:1fr}}
+
+/* M11 operator-only security evidence, responsive read-only NO-GO checklist. */
+.creator-page .studio-assets .studio-asset{overflow-wrap:anywhere}
+.creator-page .creator-preflight textarea{width:100%;max-width:100%;resize:vertical}
+@media(max-width:760px){.creator-page .studio-assets{grid-template-columns:1fr}}

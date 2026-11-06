@@ -1,6 +1,6 @@
 {
   "name": "lookenft",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -32,7 +32,11 @@
     "market:sync-readonly": "tsx scripts/m9-market-once.ts",
     "market:snapshots": "tsx scripts/m9-snapshot-orders.ts",
     "test:m9": "node --import tsx --test tests/m9.test.ts tests/m9.integration.test.ts",
-    "test:m10": "node --import tsx --test tests/m10.test.ts tests/m10.integration.test.ts"
+    "test:m10": "node --import tsx --test tests/m10.test.ts tests/m10.integration.test.ts",
+    "test:m11": "node --import tsx --test tests/m11.test.ts tests/m11.integration.test.ts",
+    "m11:revocation": "tsx scripts/m11-apply-revocation.ts",
+    "m11:check-sources": "tsx scripts/m11-check-operator-sources.ts",
+    "m11:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts"
   },
   "dependencies": {
     "next": "16.4.5",

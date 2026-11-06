@@ -31,6 +31,10 @@ export async function saveSocialSnapshot(
    "SELECT profile_id FROM nft_profile_links WHERE wallet_address=$1 FOR UPDATE",[proof.wallet]);
   if(active.rowCount!==1||active.rows[0].profile_id!==proof.profileId)
    throw new ApiError(403,"Signed Looke profile must be linked with the existing M2 wallet-identity flow");
+  const revoked=await db.query(
+   "SELECT 1 FROM nft_m11_social_revocations WHERE wallet_address=$1",
+   [proof.wallet]);
+  if(revoked.rowCount)throw new ApiError(403,"Looke Social account revoked by signed source; manual recovery required");
   const previous=await db.query<{issued_at:Date}>(
    "SELECT issued_at FROM nft_m10_social_profiles WHERE wallet_address=$1 FOR UPDATE",
    [proof.wallet]
@@ -79,7 +83,8 @@ export async function profileForWallet(wallet:string){
    FROM nft_m10_social_profiles s
    JOIN nft_profile_links p ON p.wallet_address=s.wallet_address AND p.profile_id=s.profile_id
    WHERE s.wallet_address=$1 AND s.chain_id=18881 AND s.suspended=false
-     AND s.public_approved=true AND s.expires_at>now()`,[wallet.toLowerCase()]);
+     AND s.public_approved=true AND s.expires_at>now()
+     AND NOT EXISTS(SELECT 1 FROM nft_m11_social_revocations r WHERE r.wallet_address=s.wallet_address)`,[wallet.toLowerCase()]);
  const row=result.rows[0];
  if(!row)return null;
  const posts=await getDb().query<{post_id:string;body:string;created_at:Date;media_kind:string|null;approved_media_url:string|null}>(
@@ -119,31 +124,13 @@ export async function profileForWallet(wallet:string){
   warning:"Real moderated, signed Looke Social snapshot. NFT ownership is proven only at the displayed historical Testnet block and can change after verification."
  };
 }
-export async function publicCreatorDirectory(search:string,limit=20){
- m10Gate("directory");
- if(typeof search!=="string"||search.length>24||
-    !/^[a-z0-9_]*$/.test(search))throw new ApiError(400,"Invalid Looke creator search");
- const results=await getDb().query(
-  `SELECT s.handle,s.display_name,s.wallet_address,
-    a.collection_address,a.token_id::text AS avatar_token_id,
-    b.block_number::text AS avatar_verified_at_block
-   FROM nft_m10_social_profiles s
-   JOIN nft_profile_links l ON l.wallet_address=s.wallet_address
-     AND l.profile_id=s.profile_id
-   LEFT JOIN nft_m10_verified_nft_avatars a ON a.owner_wallet=s.wallet_address
-    AND a.expires_at>now()
-   LEFT JOIN nft_indexer_blocks b ON b.chain_id=a.chain_id
-    AND b.block_number=a.block_number AND b.block_hash=a.block_hash
-   WHERE s.public_approved=true AND s.suspended=false
-    AND s.expires_at>now() AND s.handle LIKE $1
-   ORDER BY s.handle ASC LIMIT $2`,
-  [search+"%",Math.min(limit,20)]
- );
- return {profiles:results.rows.map(r=>({...r,
-  collection_address:r.avatar_verified_at_block&&r.collection_address?r.collection_address:null,
-  avatar_token_id:r.avatar_verified_at_block&&r.collection_address?r.avatar_token_id:null})),
-  source:"operator-approved-public-signed-social-snapshots-only",
-  blockedRelationshipReviewRequired:true};
+/**
+ * M11 security gate: a PUBLIC cursor over all creators is unsafe while the
+ * Looke Social signed viewer-specific block/mute policy issuer is absent.
+ * Only explicit one-subject signed visibility proofs may reveal content.
+ */
+export async function publicCreatorDirectory(_search:string,_limit=20):Promise<never>{
+ throw new ApiError(503,"Public directory disabled: require one-use viewer-bound Looke Social block/mute proof per creator");
 }
 export async function limitSocialWallet(wallet:string,action:"read"|"sync"|"avatar"|"directory",limit=30){
  const window=new Date(Math.floor(Date.now()/60000)*60000);
