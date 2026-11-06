@@ -165,7 +165,7 @@ export default function CreateCollectionPage(){
   <p className="curated-overline">PRIVATE CREATE STUDIO</p><h1>Operator access required</h1>
   <p className="operator-note">{!wallet.authenticated?
    "Connect your wallet and sign in on Ultra EVM Testnet. Only the LookeNFT operator can create or publish collections.":
-   "This account cannot access collection creation. Only the verified LookeNFT operator wallet is authorised."}</p>
+   "You can preview a draft, but publishing requires the verified operator wallet."}</p>
   <Link className="inline-link" href="/explore">Return to official collections</Link>
  </section>;
  const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
@@ -173,7 +173,9 @@ export default function CreateCollectionPage(){
   <Link className="curated-back" href="/admin">← Collection control</Link>
   <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
   <h1>Create an NFT collection</h1>
-  <p>Design a drop, preview its appearance, deploy it with your own wallet approval, then publish its verified collection to the LookeNFT market. Public users cannot create NFTs.</p>
+  <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Drafts do not mint, deploy or charge anyone; real publishing is operator-only.</p>
+  {authorised===false&&<p className="operator-note"><strong>Preview-only mode.</strong> You can try the editor, but your signed-in wallet is not configured as the publishing operator.</p>}
+  {authorised===null&&<p className="operator-note">Checking publishing access. You can still design a preview.</p>}
   <div className="creator-steps" aria-label="Creation stages"><span className={stage==="edit"?"active":""}>1. Collection details</span><span className={stage==="preview"?"active":""}>2. Preview</span><span>3. Publish to market</span></div>
   {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
    <div className="creator-fields">
@@ -202,18 +204,24 @@ export default function CreateCollectionPage(){
       <input value={form.metadataUri} onChange={e=>put("metadataUri",e.target.value)}
        placeholder={form.standard==="erc721"?"ipfs://your-cid/":"ipfs://your-cid/{id}.json"}/></label>
     <label className="creator-wide">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={e=>put("description",e.target.value)} placeholder="Tell collectors about this drop…"/></label>
+     <label className="creator-wide">Traits (optional, one Name: Value per line)<textarea rows={4} value={form.traits} onChange={e=>put("traits",e.target.value)} placeholder="Background: Pink"/></label>
    </div>
-   <p className="operator-note">Local files are for preview only; publishable artwork must have an approved hosted HTTPS URL. Token metadata must be genuinely hosted before deployment. Mint price and per-wallet limits are plans only: a separately wallet-approved on-chain mint phase is required to make them enforceable. Previewing does not mint or charge anybody.</p>
+   <p className="operator-note"><strong>10,000 supply preselected.</strong> One image + ERC-1155 means 10,000 copies of an edition, not 10,000 unique artworks. Unique ERC-721 imagery and rarity require real image layers and metadata. Local preview files are not uploaded. On-chain publishing needs verified hosted metadata and operator authorization.</p>
    <button type="submit">Preview collection →</button>
   </form>:<>
    <div className="creator-preview">
     <div className="creator-preview-image">{(localArtwork||form.coverUrl)?<img src={localArtwork||form.coverUrl} alt="Draft collection cover"/>:<span>◇<small>Cover image not set</small></span>}</div>
     <div className="creator-preview-info"><p className="curated-overline">UNPUBLISHED DRAFT · PREVIEW ONLY</p>
      <h2>{form.name}</h2><p>{form.description||"No description yet."}</p>
-     <div className="creator-preview-stats"><span>Network<strong>Ultra EVM Testnet</strong></span><span>Standard<strong>{form.standard.toUpperCase()}</strong></span><span>Supply<strong>{form.totalCap}</strong></span><span>Planned mint price<strong>{form.mintPriceUos} UOS</strong></span><span>Per wallet (planned)<strong>{form.perWalletCap}</strong></span><span>Royalty<strong>{form.royaltyPercent}%</strong></span></div>
+     <div className="creator-preview-stats"><span>Network<strong>Ultra EVM Testnet</strong></span><span>Standard<strong>{form.standard.toUpperCase()}</strong></span><span>Planned supply<strong>{Number(form.totalCap).toLocaleString()}</strong></span><span>Planned mint price<strong>{form.mintPriceUos} UOS</strong></span><span>Per wallet (planned)<strong>{form.perWalletCap}</strong></span><span>Royalty<strong>{form.royaltyPercent}%</strong></span><span>Rarity<strong>{design?.rarity}</strong></span></div>
     </div>
    </div>
-   <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
+   <div className="creator-publish-panel"><h2>Automatically prepared NFT metadata</h2>
+     <p>An illustrative metadata record generated from your artwork and attributes. It is not a hosted token, minted inventory or verified rarity ranking.</p>
+     <pre className="creator-json">{JSON.stringify(design?.metadata,null,2)}</pre>
+     <button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(design?.metadata,null,2));}}>Copy example metadata JSON</button>
+    </div>
+    <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
    <div className="creator-publish-panel">
     <h2>Deploy to Ultra Testnet</h2>
     <p>Only your authorised wallet can approve a transaction from the owner-only V3 factory. NFT creation on Ultra is a separate blockchain transaction, not the same as publishing a catalogue card.</p>
