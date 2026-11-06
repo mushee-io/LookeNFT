@@ -265,3 +265,44 @@ the collection creator**, and opening Looke Social does not post anything.
 Existing M9 verified wallet-only market notifications are read-only.
 Migration 008, source contract and precise NO-GO gates are documented in
 `docs/M10_ACCEPTANCE.md`. No mainnet, real deployment or trading action.
+
+## M11 — Source Acceptance & Security Verification (NO-GO engineering)
+
+`/acceptance` is a Testnet-only, **operator-authenticated** read-only
+source checklist. It enumerates 18 independent evidence gates and can
+record externally signed EdDSA reviewer submissions as
+`submitted_unverified` **only**. No code can set review approved,
+authorise mainnet/public beta or enable real minting, trading or UOS escrow.
+
+`lib/m11/source.ts` accepts separate short-lived `lookenft-revocation`
+and viewer-scoped `lookenft-visibility` signed JWTs from the *real* Looke
+Social provider, once implemented. Monotonic revocations lock out future
+Social imports, revoke wallet sessions, delete M2 identity links and
+cascade M10 public profile, posts, avatar and collection references.
+Visibility checks consume a one-time JWT proving viewer/subject/blocked
+policy and deny blocked/muted subjects. M10 blanket creator directory
+was **disabled** until genuinely signed per-viewer source policy exists.
+
+`lib/m11/nft.ts` adds operator-only revalidation: canonical M3 block,
+two genuine independent Ultra EVM Testnet 18881 RPC witnesses, Blockscout,
+ERC721 ownerOf/ERC1155 balanceOf, runtime code hash, moderated M6 source
+records and byte-exact pinned IPFS metadata. No unverified owner/avatar
+or metadata is shown as newly validated if a witness source is absent.
+
+`lib/m11/media.ts` inspects actual user-owned M6 Cloudinary/ClamAV/
+Pinata/moderator records and stores limited **unverified candidate**
+witnesses. It does not mistake configured API credentials or CI fixtures
+for genuine external attestations. `scripts/m11-restore-rehearsal.ts`
+performs a full PostgreSQL logical dump to a **separate scratch database**,
+checks schema/table/constraint integrity and rehearses an isolated
+transaction rollback, strictly on opt-in localhost CI; **not** a
+production restore or signed security review.
+
+All M11 sources are default-OFF and M1–M10 drafts remain unmerged. CI
+unit/integration fixtures are synthetic and **not** on-chain proof.
+Detailed dependencies: `docs/M11_ACCEPTANCE.md`.
+
+**M12 is the FINAL LookeNFT milestone**: actual operator source connection
+and evidence-backed Testnet acceptance/human launch or NO-GO decision.
+No launch if independent sources, human security audit or real wallet
+transaction receipts are missing.
