@@ -1,6 +1,7 @@
 import net from "node:net";
 import { randomUUID, createHash } from "node:crypto";
-import { ApiError } from "@/lib/server/http";\nimport { canonicalJSON } from "@/lib/m6/metadata";
+import { ApiError } from "@/lib/server/http";
+import { canonicalJSON } from "@/lib/m6/metadata";
 import { cloudinaryReady, scanServiceReady, trustedGateway, IPFS_CID, type VerifiedMedia } from "@/lib/m6/security";
 
 export type ScanEvidence={engine:"clamav-instream";result:"clean"|"infected";evidenceHash:string};
