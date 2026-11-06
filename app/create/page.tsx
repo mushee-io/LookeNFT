@@ -8,7 +8,7 @@ import {
 import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
 import {
-  M4_DEPLOY_ENABLED, M4_FACTORY_ADDRESS, factoryAbi, collectionAbi,
+  M4_DEPLOY_ENABLED, M4_CANCUN_VERIFIED, M4_FACTORY_ADDRESS, factoryAbi, collectionAbi,
   validateCollectionDraft, type CollectionDraft, type ValidatedCollection
 } from "@/lib/m4/factory";
 
@@ -161,7 +161,7 @@ export default function CreatePage() {
     } finally { setBusy(false); }
   }
 
-  const gateMessage = !M4_DEPLOY_ENABLED
+  const gateMessage = !M4_CANCUN_VERIFIED\n    ? "Cancun MCOPY/PUSH0 compatibility is not independently confirmed by the operator."\n    : !M4_DEPLOY_ENABLED
     ? "Deployment is disabled by the M4 operator gate."
     : !isAddress(M4_FACTORY_ADDRESS, { strict: false })
       ? "The authorised Testnet factory address is not configured."
@@ -242,7 +242,7 @@ export default function CreatePage() {
           I have reviewed the Testnet contract, chain, supply, royalty and wallet gas fees; the collection will be immutable except for owner-controlled metadata changes until frozen.
         </label>
         <button className="primary-link" type="button" disabled={
-          !acknowledged || !M4_DEPLOY_ENABLED || !wallet.authenticated ||
+          !acknowledged || !M4_DEPLOY_ENABLED || !M4_CANCUN_VERIFIED || !wallet.authenticated ||
           wallet.pending || busy || wallet.chainId !== 18881
         } onClick={()=>void deploy()}>
           {busy?"Checking receipt…":"Confirm deployment in wallet"}

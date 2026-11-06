@@ -16,8 +16,8 @@ stacked draft PR against M3; it is **not** a live chain deployment or launch.
 - No original security audit, completed wallet-signed transaction, or human
   sign-off is attached to this project.
 
-## M4 smart-contract design
-- OpenZeppelin Contracts 5.5.0 pinned as an externally reviewed dependency;
+## Cancun EVM compatibility gate\n\n- Pinned OpenZeppelin 5.6.1 uses Cancun MCOPY instructions. This repository compiles for Cancun and its Hardhat VM simulates Cancun, but **Ultra EVM Testnet Cancun/MCOPY compatibility has not been independently verified**.\n- **NO-GO** for any real Testnet deployment until operator proves MCOPY/PUSH0 execution on Ultra EVM Testnet with independent RPC/explorer evidence and records a human compatibility sign-off. Never infer support from chain ID 18881 or a local Hardhat test.\n- The client and wallet provider additionally require an explicit `NEXT_PUBLIC_M4_CANCUN_VERIFIED=true` operator gate; default is false. This flag is an operator attestation, not proof by itself.\n\n## M4 smart-contract design
+- OpenZeppelin Contracts 5.6.1 pinned as an externally reviewed dependency;
   *our custom factory/collections have not been independently audited*.
 - Deterministic `CREATE2` factory creates non-upgradeable creator-owned
   ERC-721 and ERC-1155 collections. Factory constructor explicitly refuses
@@ -83,7 +83,7 @@ stacked draft PR against M3; it is **not** a live chain deployment or launch.
   size, creator-only reserved minting, callback reentry, cap arithmetic, URI
   rules and royalty assumptions; independent review required.
 - [ ] Human desktop/mobile creator-flow screenshots at 375/768/1440px.
-- [ ] Operator approval for real Ultra EVM Testnet factory deployment (not
+- [ ] Independent Cancun opcode compatibility evidence (MCOPY and PUSH0) from Ultra EVM Testnet, signed by the operator.\n- [ ] Operator approval for real Ultra EVM Testnet factory deployment (not
   provided), genuinely wallet-signed transaction and published explorer hash.
 - [ ] Independently verify factory *deployed* bytecode against exact compiled
   artifact and get external source verification. Upstream OZ audit does not

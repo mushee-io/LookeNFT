@@ -23,13 +23,13 @@ module.exports = {
     settings: {
       optimizer: { enabled: true, runs: 200 },
       viaIR: true,
-      evmVersion: "paris",
+      evmVersion: "cancun",
       metadata: { bytecodeHash: "ipfs" }
     }
   },
   networks: {
     /* A *local* Hardhat VM that emulates chain ID 18881; never a real Testnet. */
-    hardhat: { chainId: 18881, allowUnlimitedContractSize: false }
+    hardhat: { chainId: 18881, hardfork: "cancun", allowUnlimitedContractSize: false }
   },
   paths: {
     sources: "./contracts",

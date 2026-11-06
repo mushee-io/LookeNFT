@@ -51,6 +51,6 @@ test("M4 deployment is explicitly opt-in, local hardhat has no funded remote wal
   assert.doesNotMatch(config,/privateKey|mnemonic|accounts:.*process\.env/);
   assert.match(provider,/NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT !== "true"/);
   assert.match(provider,/eth_sendTransaction/);
-  assert.match(env,/NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT=false/);
+  assert.match(env,/NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT=false/);\n  assert.match(env,/NEXT_PUBLIC_M4_CANCUN_VERIFIED=false/);\n  assert.match(config,/hardfork: "cancun"/);
   assert.match(env,/NEXT_PUBLIC_M4_FACTORY_ADDRESS=/);
 });

@@ -60,7 +60,7 @@ See `docs/M3_ACCEPTANCE.md` for checks and outstanding operator evidence.
 ## M4 — Collection factory and creator studio (stacked draft, not deployed)
 
 M4 implements Ultra EVM **Testnet-only** ERC-721/1155 collection contracts and
-a deterministic CREATE2 factory, using pinned OpenZeppelin Contracts 5.5.0,
+a deterministic CREATE2 factory, using pinned OpenZeppelin Contracts 5.6.1,
 solc-js 0.8.30 and Hardhat local VM. Creator ownership, reserve mint supply
 caps, ERC-2981 royalty signalling, metadata controls, pause/freeze and
 on-chain event evidence are covered by local tests. Upstream audited libraries
@@ -75,8 +75,8 @@ do **not** make our custom contracts independently audited.
 metadata and royalty checks, deterministic address preflight against a
 configured factory, and explicit wallet approval when enabled.
 
-**No deployments have been authorised.** The default
-`NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT=false` blocks all transaction submission
+**No deployments have been authorised.** Cancun compatibility on Ultra EVM Testnet is unverified and remains a separate NO-GO gate; this build uses Cancun-only MCOPY instructions. The default
+`NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT=false` and `NEXT_PUBLIC_M4_CANCUN_VERIFIED=false` blocks all transaction submission
 and `NEXT_PUBLIC_M4_FACTORY_ADDRESS` starts empty. No private keys, seed
 phrases or remote deploy scripts are included. To enable future human-authorised
 Testnet deployment, the operator must first deploy/verify the factory with
