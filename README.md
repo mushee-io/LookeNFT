@@ -121,3 +121,30 @@ The script never uses keys or signs transactions.
 See `docs/M5_ACCEPTANCE.md`. M1–M4 still have outstanding real-wallet,
 operator database, independent explorer, Cancun compatibility and audit gates.
 **No M5 deployment, mint, payment or mainnet release has been carried out.**
+
+
+## M6 — Secure creator media, moderation and metadata (stacked draft)
+
+M6 adds a private creator asset dashboard at `/studio`, a protected
+reviewer queue at `/studio/moderation`, and wallet-scoped media and metadata
+APIs using PostgreSQL migration `004_m6_creator_media.sql`.
+
+- Private authenticated Cloudinary uploads require actual backend credentials,
+  byte-level PNG/JPEG/WebP/MP4/WebM validation, upload caps and a real ClamAV
+  INSTREAM clean result. **Uploads OFF by default.**
+- Creator uploads are quarantined; only operator-allowlisted, wallet-authenticated
+  moderators may approve with actual evidence. Creators cannot self-approve.
+- IPFS publishing requires separately enabled Pinata credentials, an approved
+  asset re-upload with matching SHA-256 and second scan, and independent
+  gateway byte-hash confirmation. No unmoderated file is intentionally pinned.
+- Metadata is canonical, versioned, owner-authenticated and linked only to
+  an actual approved NFT contract and verified media CID. ERC721 tokenURI /
+  ERC1155 uri checks are read-only and labelled *primary RPC only*.
+- `npm run test:media` adds adversarial media and PostgreSQL tests, while
+  `npm run check` and full Solidity regression stay required.
+
+No credentials, original audits, human reviews or live media have been provided.
+All external integrations default to disabled, and M1–M5 PRs remain unmerged
+drafts. Cancun MCOPY compatibility and independent Testnet/Blockscout evidence
+remain NO-GO. See `docs/M6_ACCEPTANCE.md` for exact acceptance gates and
+operational instructions. **No chain deployment, minting or UOS payments.**
