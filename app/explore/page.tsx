@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import OperatorCreateNav from "@/components/OperatorCreateNav";
 
 type Drop={address:string;standard:"erc721"|"erc1155";title:string;description:string;coverUrl:string|null;status:"draft"|"published";mintAvailable:boolean;publishedAt:string|null};
 type Result={collections?:Drop[];error?:string;catalogueReady?:boolean};
@@ -26,7 +27,7 @@ export default function ExplorePage(){
       <h1>Discover <span>LookeNFT</span> collections.</h1>
       <p>Only official, operator-published NFT drops appear here. Open a collection to preview its details, and mint when the drop is enabled.</p>
     </div>
-    <div className="curated-heading"><div><p className="curated-overline">OFFICIAL COLLECTIONS</p><h2>Explore drops</h2></div><span className="curated-count">{loading?"Loading":collections.length+" published"}</span></div>
+    <div className="curated-heading"><div><p className="curated-overline">OFFICIAL COLLECTIONS</p><h2>Explore drops</h2></div><div className="curated-heading-actions"><OperatorCreateNav /><span className="curated-count">{loading?"Loading":collections.length+" published"}</span></div></div>
     {collections.length>0&&<label className="curated-search-label">Search collections<input aria-label="Search official NFT collections" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by collection name" /></label>}
     {loading?<div className="curated-empty" role="status">Loading official drops…</div>
       :error?<div className="curated-empty" role="alert">Unable to verify published collections right now. {error}</div>
