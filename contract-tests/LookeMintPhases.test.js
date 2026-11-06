@@ -6,6 +6,7 @@ const ZERO=ethers.ZeroHash;
 async function now(){return Number((await ethers.provider.getBlock("latest")).timestamp);}
 async function phase(c,owner,{price=0n,walletCap=5,cap=30,root=ZERO,start,end}={}){
   const t=await now(),from=start??t-5,until=end??t+3600;
+  walletCap=Math.min(walletCap,cap);
   await(await c.connect(owner).scheduleMintPhase(from,until,price,walletCap,cap,root)).wait();
   return {id:await c.phaseCount(),expires:BigInt(until-1),start:from,end:until};
 }

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
-import { createPublicClient, decodeFunctionData, http, isAddress, toFunctionSelector, toHex, type Hex } from "viem";
+import { createPublicClient, decodeFunctionData, http, isAddress, toFunctionSelector, toHex, type Address, type Hex } from "viem";
 import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
 import { describeWalletError, ensureChain, hexChain, validAccounts, type Eip1193Provider, type WalletOption } from "@/lib/wallet-provider";
 
@@ -398,7 +398,7 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
         ] as const, functionName: "isCollection", args: [collection] }),
         rpc.getCode({ address: collection }),
         rpc.readContract({ address: collection, abi: mintAbi, functionName: "mintPhases", args: [phaseId] }),
-        rpc.readContract({ address: collection, abi: mintAbi, functionName: "mintNonces", args: [phaseId, expectedWallet] }),
+        rpc.readContract({ address: collection, abi: mintAbi, functionName: "mintNonces", args: [phaseId, expectedWallet as Address] }),
         provider.request({ method: "eth_accounts" }),
         provider.request({ method: "eth_chainId" }),
         apiSession(),

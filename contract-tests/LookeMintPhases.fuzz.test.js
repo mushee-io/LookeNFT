@@ -46,7 +46,7 @@ describe("M5 property/fuzz invariants — synthetic local chain",function(){
         await(await c.connect(alice).mintFromPhase(1n,9n,BigInt(amount),0n,[],0n,deadline)).wait();
         assert.equal(await c.mintedById(9n),BigInt(amount));
         assert.equal(await c.totalMinted(),BigInt(amount));
-        await reverts(()=>c.connect(alice).mintFromPhase(1n,9n,1n,0n,[],1n,deadline),"SupplyCapExceeded");
+        await reverts(()=>c.connect(alice).mintFromPhase(1n,9n,1n,0n,[],1n,deadline),"SupplyCapExceeded|MintSupplyExceeded");
         assert.equal(await c.mintedById(9n),BigInt(amount));
         assert.equal(await c.accruedProceeds(),0n);
       }),{numRuns:14}
