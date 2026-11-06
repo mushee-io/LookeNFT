@@ -4,7 +4,8 @@ export const M4_CHAIN_ID = 18881 as const;
 export const MAX_COLLECTION_SUPPLY = 1_000_000n;
 export const MAX_ROYALTY_BPS = 1_000n;
 export const M4_FACTORY_ADDRESS = process.env.NEXT_PUBLIC_M4_FACTORY_ADDRESS || "";
-export const M4_DEPLOY_ENABLED = process.env.NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT === "true";\nexport const M4_CANCUN_VERIFIED = process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED === "true";
+export const M4_DEPLOY_ENABLED = process.env.NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT === "true";
+export const M4_CANCUN_VERIFIED = process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED === "true";
 
 export const factoryAbi = parseAbi([
   "function VERSION() view returns (uint256)",

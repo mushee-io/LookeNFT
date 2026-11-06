@@ -98,7 +98,8 @@ describe("M4 collection factory — isolated Hardhat EVM (chainId 18881)", funct
     assert.equal(x[0],collector.address);assert.equal(x[1],750n);
     const y=await b.c.royaltyInfo(99n,10000n);
     assert.equal(y[0],other.address);assert.equal(y[1],300n);
-    await reverts(()=>creator.sendTransaction({to:await factory.getAddress(),value:1n}));
+    const factoryAddress=await factory.getAddress();
+    await reverts(()=>creator.sendTransaction({to:factoryAddress,value:1n}));
     assert.equal(await ethers.provider.getBalance(await factory.getAddress()),0n);
   });
   it("unsafe receivers revert atomically with unchanged mint counters",async function(){
