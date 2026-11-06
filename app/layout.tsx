@@ -13,7 +13,7 @@ export default function RootLayout({children}:Readonly<{children:ReactNode}>){
  return <html lang="en"><body><WalletSessionProvider><div className="site-shell">
   <header className="site-header"><Link className="brand" href="/" aria-label="LookeNFT home">
    <span className="brand-symbol">L</span><span>Looke<span className="brand-nft">NFT</span></span>
-  </Link><nav className="site-nav" aria-label="Navigation"><Link href="/explore">Collections</Link><OperatorCreateNav /></nav><WalletConnect /></header>
+  </Link><nav className="site-nav" aria-label="Navigation"><Link href="/explore">Collections</Link><OperatorCreateNav /><Link href="/testnet">Testnet</Link></nav><WalletConnect /></header>
   <main id="content">{children}</main>
   <footer className="footer"><span>LookeNFT · Official curated NFT drops on Ultra EVM</span>
   <span>Testnet preview · No public minting without independent release approval</span></footer>
