@@ -98,7 +98,11 @@ test("real PostgreSQL: Looke profile assertions require issuer signature, wallet
     assert.equal(link.rowCount, 0);
     // Even after unlink, the same issuer JWT cannot be consumed twice.
     await assert.rejects(linkLookeProfile(valid.wallet, valid), /duplicate key value/);
-    const fake = signed.slice(0, -1) + (signed.endsWith("A") ? "B" : "A");
+    // The trailing base64url character can have non-significant padding bits.
+    // Flip a *leading* signature character to guarantee different signature bytes.
+    const [jwtHeader, jwtPayload, jwtSignature] = signed.split(".");
+    const fake = [jwtHeader, jwtPayload,
+      (jwtSignature.startsWith("A") ? "B" : "A") + jwtSignature.slice(1)].join(".");
     await assert.rejects(verifyLookeIdentityAssertion(fake), /Invalid Looke identity/);
   } finally {
     if (oldPub === undefined) delete process.env.LOOKE_IDENTITY_PUBLIC_KEY_PEM;

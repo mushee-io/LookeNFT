@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
+import { isAddress, toFunctionSelector, type Hex } from "viem";
 import { describeWalletError, ensureChain, hexChain, validAccounts, type Eip1193Provider, type WalletOption } from "@/lib/wallet-provider";
 
 type Session = { authenticated: boolean; wallet: string; chainId: number; expiresAt: string; profileId: string | null };
@@ -21,6 +22,7 @@ type WalletContextValue = {
   switchNetwork: () => Promise<void>;
   disconnect: () => Promise<void>;
   unlinkProfile: () => Promise<void>;
+  submitFactoryDeployment: (factoryAddress: string, calldata: Hex) => Promise<Hex>;
   dismissPairing: () => void;
 };
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -307,11 +309,62 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     finally { setPending(false); }
   }
 
+
+  /** M4: the *only* wallet transaction surface. Disabled until operator release.
+   * Wallet prompts the user to confirm each call; no auto-broadcast or keys.
+   * A factory deployment itself remains a separate human-authorised operation.
+   */
+  async function submitFactoryDeployment(factoryAddress: string, calldata: Hex): Promise<Hex> {
+    if (process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED !== "true")
+      throw new Error("Ultra EVM Testnet Cancun opcode compatibility is not operator-verified");
+    if (process.env.NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT !== "true")
+      throw new Error("M4 Testnet deployment gate is closed");
+    if (ACTIVE_NETWORK.chainId !== 18881)
+      throw new Error("M4 deployment is restricted to Ultra EVM Testnet");
+    const approvedFactory = process.env.NEXT_PUBLIC_M4_FACTORY_ADDRESS || "";
+    if (!isAddress(approvedFactory) ||
+        factoryAddress.toLowerCase() !== approvedFactory.toLowerCase())
+      throw new Error("Factory address is not operator-approved");
+    const permitted = [
+      toFunctionSelector("createERC721(string,string,string,uint256,address,uint96,bytes32)"),
+      toFunctionSelector("createERC1155(string,uint256,uint256,address,uint96,bytes32)"),
+    ];
+    if (!/^0x[\da-fA-F]+$/.test(calldata) || !permitted.some(s => calldata.startsWith(s)))
+      throw new Error("Unrecognised M4 factory method");
+    const provider = providerRef.current;
+    if (!provider || !address || !session || pending)
+      throw new Error("Connect and sign in with the Testnet wallet first");
+    const [wallets, connectedChain, fresh] = await Promise.all([
+      provider.request({ method: "eth_accounts" }),
+      provider.request({ method: "eth_chainId" }),
+      apiSession(),
+    ]);
+    const matchingAccount = validAccounts(wallets)[0]?.toLowerCase() === address.toLowerCase();
+    if (!matchingAccount || hexChain(connectedChain) !== 18881 ||
+        fresh?.wallet.toLowerCase() !== address.toLowerCase() ||
+        fresh.chainId !== 18881 || session.wallet.toLowerCase() !== address.toLowerCase()) {
+      throw new Error("Connected wallet, network or server session changed");
+    }
+    setPending(true);
+    try {
+      // Explicit approval in wallet; the app never signs with a private key.
+      const result = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: address, to: approvedFactory, data: calldata, value: "0x0" }],
+      });
+      if (typeof result !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(result))
+        throw new Error("Wallet returned no canonical transaction hash");
+      return result as Hex;
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitFactoryDeployment, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>
