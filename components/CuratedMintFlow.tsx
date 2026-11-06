@@ -46,9 +46,9 @@ function errorText(error:unknown):string{
   if(error instanceof Error)return error.message.slice(0,450);
   return "Unable to review mint request";
 }
-export default function CuratedMintFlow({collection,phaseId}:{collection:string;phaseId:string}){
+export default function CuratedMintFlow({collection:officialCollection,phaseId}:{collection:string;phaseId:string}){
   const wallet=useWalletSession();
-  const [draft,setDraft]=useState<MintDraft>(()=>({...initial,collection,phaseId}));
+  const [draft,setDraft]=useState<MintDraft>(()=>({...initial,collection:officialCollection,phaseId}));
   const [review,setReview]=useState<Review|null>(null);
   const [ack,setAck]=useState(false);
   const [busy,setBusy]=useState(false);
@@ -66,7 +66,7 @@ export default function CuratedMintFlow({collection,phaseId}:{collection:string;
     event.preventDefault();
     setBusy(true);setError(null);setReview(null);setStatus("preflight");
     try{
-      if(draft.collection.toLowerCase()!==collection.toLowerCase()||draft.phaseId!==phaseId)throw new Error("This collection is not in the official mint flow");
+      if(draft.collection.toLowerCase()!==officialCollection.toLowerCase()||draft.phaseId!==phaseId)throw new Error("This collection is not in the official mint flow");
       if(!wallet.address||wallet.chainId!==18881)throw new Error("Connect an Ultra EVM Testnet wallet first");
       if(!isAddress(M5_FACTORY_ADDRESS,{strict:false}))throw new Error("M5 factory is not configured by operator");
       const params=parseMintDraft(draft);
@@ -207,7 +207,7 @@ export default function CuratedMintFlow({collection,phaseId}:{collection:string;
     <form onSubmit={e=>void preflight(e)} className="creator-form">
       <div className="creator-form-grid">
         <label className="creator-wide">Collection contract (registered in factory)
-          <input placeholder="0x…" value={collection} readOnly />
+          <input placeholder="0x…" value={officialCollection} readOnly />
         </label>
         <label>Mint phase ID<input inputMode="numeric" value={phaseId} readOnly/></label>
         <label>Quantity<input inputMode="numeric" value={draft.quantity} onChange={e=>edit("quantity",e.target.value)}/></label>
