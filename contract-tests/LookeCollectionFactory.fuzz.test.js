@@ -45,12 +45,20 @@ describe("M4 security property tests — local chain only, never real deployment
 
   it("property: creator-salted CREATE2 predictions cannot be hijacked by alternate signer",async function(){
     await fc.assert(fc.asyncProperty(fc.integer({min:1,max:2147483647}),async(saltNumber)=>{
-      const s=ethers.zeroPadValue(ethers.toBeHex(saltNumber),32);
-      const alpha=await create721(factory,creator,{salt:s});
-      const beta=await create721(factory,other,{salt:s});
-      assert.notEqual(alpha.address,beta.address);
-      assert.equal(await alpha.c.owner(),creator.address);
-      assert.equal(await beta.c.owner(),other.address);
+      // Each property case must start from the same pristine factory state.
+      // fast-check may generate duplicate salt inputs; they must not trigger
+      // state leaked from a preceding case instead of the property under test.
+      const snapshot=await ethers.provider.send("evm_snapshot",[]);
+      try {
+        const s=ethers.zeroPadValue(ethers.toBeHex(saltNumber),32);
+        const alpha=await create721(factory,creator,{salt:s});
+        const beta=await create721(factory,other,{salt:s});
+        assert.notEqual(alpha.address,beta.address);
+        assert.equal(await alpha.c.owner(),creator.address);
+        assert.equal(await beta.c.owner(),other.address);
+      } finally {
+        await ethers.provider.send("evm_revert",[snapshot]);
+      }
     }),{numRuns:8});
   });
 });
