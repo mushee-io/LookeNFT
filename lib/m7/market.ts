@@ -33,7 +33,6 @@ export type ListingDraft={
   minSellerProceedsUOS:string;maxFeeBps:string;maxRoyaltyBps:string;
   standard:"erc721"|"erc1155";
 };
-const tuple="(address seller,address collection,uint256 tokenId,uint256 quantity,uint256 unitPriceWei,uint256 nonce,uint256 deadline,address reservedBuyer,uint256 minSellerProceedsWei,uint16 maxFeeBps,uint16 maxRoyaltyBps,uint8 standard)";
 export const marketAbi=parseAbi([
   "function VERSION() view returns (uint256)",
   "function ULTRA_TESTNET_CHAIN_ID() view returns (uint256)",
@@ -41,16 +40,16 @@ export const marketAbi=parseAbi([
   "function feeRecipient() view returns (address)",
   "function minimumNonce(address) view returns (uint256)",
   "function invalidNonces(address,uint256) view returns (bool)",
-  "function hashListing("+tuple+" o) view returns (bytes32)",
-  "function isFillable("+tuple+" o,bytes signature) view returns (bool)",
-  "function quote("+tuple+" o) view returns (uint256 price,uint256 fee,address receiver,uint256 royalty,uint256 proceeds)",
-  "function buy("+tuple+" o,bytes signature) payable",
+  "function hashListing((address seller,address collection,uint256 tokenId,uint256 quantity,uint256 unitPriceWei,uint256 nonce,uint256 deadline,address reservedBuyer,uint256 minSellerProceedsWei,uint16 maxFeeBps,uint16 maxRoyaltyBps,uint8 standard) o) view returns (bytes32)",
+  "function isFillable((address seller,address collection,uint256 tokenId,uint256 quantity,uint256 unitPriceWei,uint256 nonce,uint256 deadline,address reservedBuyer,uint256 minSellerProceedsWei,uint16 maxFeeBps,uint16 maxRoyaltyBps,uint8 standard) o,bytes signature) view returns (bool)",
+  "function quote((address seller,address collection,uint256 tokenId,uint256 quantity,uint256 unitPriceWei,uint256 nonce,uint256 deadline,address reservedBuyer,uint256 minSellerProceedsWei,uint16 maxFeeBps,uint16 maxRoyaltyBps,uint8 standard) o) view returns (uint256 price,uint256 fee,address receiver,uint256 royalty,uint256 proceeds)",
+  "function buy((address seller,address collection,uint256 tokenId,uint256 quantity,uint256 unitPriceWei,uint256 nonce,uint256 deadline,address reservedBuyer,uint256 minSellerProceedsWei,uint16 maxFeeBps,uint16 maxRoyaltyBps,uint8 standard) o,bytes signature) payable",
   "function cancelNonce(uint256 nonce)",
   "function raiseMinimumNonce(uint256 newMinimum)",
   "event ListingFilled(bytes32 indexed orderHash,address indexed seller,address indexed buyer,address collection,uint256 tokenId,uint256 quantity,uint256 priceWei,uint256 feeWei,address royaltyRecipient,uint256 royaltyWei,uint256 sellerProceedsWei,uint256 nonce,uint8 standard)",
   "event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)",
   "event TransferSingle(address indexed operator,address indexed from,address indexed to,uint256 id,uint256 value)",
-]);
+] as const);
 export const erc721Abi=parseAbi([
   "function supportsInterface(bytes4 interfaceId) view returns (bool)",
   "function ownerOf(uint256 tokenId) view returns (address)",

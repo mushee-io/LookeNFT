@@ -71,9 +71,10 @@ describe("M7 fixed-price EIP712 marketplace — LOCAL Hardhat only; no real Test
   const o=await order(market,c,seller);
   const signature=await sign(market,seller,o);
   await reverts(()=>market.connect(buyer).buy({...o,unitPriceWei:UOS+1n},signature,{value:UOS+1n}),"InvalidSignature");
-  await reverts(()=>market.connect(buyer).buy(o,await sign(market,seller,o,{chainId:1}),{value:UOS}),"InvalidSignature");
+  const crossChainSignature=await sign(market,seller,o,{chainId:1});
+  await reverts(()=>market.connect(buyer).buy(o,crossChainSignature,{value:UOS}),"InvalidSignature");
   const otherMarket=await marketDeploy(feeWallet.address);
-  await reverts(()=>otherMarket.connect(buyer).buy(o,signature,{value:UOS}),"InvalidSignature|UnauthorizedNFT");
+  await reverts(()=>otherMarket.connect(buyer).buy(o,signature,{value:UOS}),"InvalidSignature");
   await reverts(()=>market.connect(buyer).buy(o,await sign(market,outsider,o),{value:UOS}),"InvalidSignature");
   await reverts(()=>market.connect(buyer).buy({...o,deadline:1n},signature,{value:UOS}),"ListingExpired");
  });
