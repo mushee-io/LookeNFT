@@ -18,7 +18,7 @@ export type CuratedCollection = {
   publishedAt: string | null;
 };
 const ownerAbi = parseAbi(["function owner() view returns (address)", "function supportsInterface(bytes4) view returns (bool)"]);
-const factoryAbi = parseAbi(["function isCollection(address) view returns (bool)"]);
+const factoryAbi = parseAbi(["function isCollection(address) view returns (bool)","function VERSION() view returns (uint256)","function owner() view returns (address)"]);
 const rpc = createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
 
 export function operatorAddress(): Address | null {
@@ -62,18 +62,20 @@ export async function verifyOperatorCollection(addressRaw:string,operator:string
     [address.toLowerCase()]
   );
   if(registry.rowCount!==1)throw new ApiError(409,"Collection must first pass the canonical indexer registration and checks");
-  const factoryRaw=process.env.M4_FACTORY_ADDRESS || process.env.NEXT_PUBLIC_M4_FACTORY_ADDRESS || "";
+  const factoryRaw=process.env.LOOKE_NFT_OWNER_FACTORY_ADDRESS || "";
   if(!isAddress(factoryRaw,{strict:false}))throw new ApiError(503,"Verified operator factory is not configured");
   const factory=getAddress(factoryRaw);
-  const [chainId,code,owner,registered,supports]=await Promise.all([
+  const [chainId,code,owner,registered,supports,version,factoryOwner]=await Promise.all([
     rpc.getChainId(),
     rpc.getCode({address}),
     rpc.readContract({address,abi:ownerAbi,functionName:"owner"}),
     rpc.readContract({address:factory,abi:factoryAbi,functionName:"isCollection",args:[address]}),
     rpc.readContract({address,abi:ownerAbi,functionName:"supportsInterface",
-      args:[registry.rows[0].token_standard==="erc721"?"0x80ac58cd":"0xd9b67a26"]})
+      args:[registry.rows[0].token_standard==="erc721"?"0x80ac58cd":"0xd9b67a26"]}),
+    rpc.readContract({address:factory,abi:factoryAbi,functionName:"VERSION"}),
+    rpc.readContract({address:factory,abi:factoryAbi,functionName:"owner"})
   ]).catch(()=>{throw new ApiError(503,"Unable to verify collection owner, factory and interface on Ultra Testnet");});
-  if(chainId!==18881 || !code || code==="0x" || !registered || !supports)
+  if(chainId!==18881 || version!==3n || factoryOwner.toLowerCase()!==operator.toLowerCase() || !code || code==="0x" || !registered || !supports)
     throw new ApiError(409,"Collection does not pass live Testnet factory/interface checks");
   if(owner.toLowerCase()!==operator.toLowerCase())
     throw new ApiError(403,"Collection contract must be owned by the authorised operator wallet");
