@@ -7,6 +7,6 @@ export async function POST(request: NextRequest) {
   try {
     guardMutation(request);
     const data = await parseBody(request);
-    return noStore(await issueChallenge(data.address, data.chainId));
+    return noStore(await issueChallenge(data.address, data.chainId, request));
   } catch (error) { return apiFailure(error); }
 }
