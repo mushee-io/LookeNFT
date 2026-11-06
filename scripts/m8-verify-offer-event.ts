@@ -63,25 +63,31 @@ async function main(){
  const other=secondaryEvents.filter(e=>lc(e.address)===lc(vault)&&lc(e.args.offerHash)===lc(digest));
  if(matched.length!==1||other.length!==1)throw Error("Independent unique offer event missing");
  const ev=matched[0];
+ const evArgs=ev.args as unknown as {
+   offerHash:Hex;buyer:Address;collection:Address;tokenId:bigint;quantity:bigint;
+   totalPriceWei:bigint;nonce:bigint;deadline:bigint;seller:Address;recipient:Address;
+   amountWei:bigint;feeWei:bigint;royaltyWei:bigint;sellerProceedsWei:bigint
+ };
+ if(ev.eventName!==events)throw Error("Wrong on-chain event variant");
  if(kind==="funded"){
   const signature=args[1] as Hex;
   if(tx.value!==o.totalPriceWei||lc(tx.from)!==lc(o.buyer)||!await verifyOfferEOA(o,contract,signature)||
-    ev.args.totalPriceWei!==o.totalPriceWei||lc(ev.args.buyer)!==lc(o.buyer))
+    evArgs.totalPriceWei!==o.totalPriceWei||lc(evArgs.buyer)!==lc(o.buyer))
    throw Error("Buyer signature, exact funded UOS or event differs");
  }else if(kind==="accepted"){
-  if(tx.value!==0n||lc(tx.from)!==lc(ev.args.seller)||lc(ev.args.buyer)!==lc(o.buyer)||
-    ev.args.totalPriceWei!==o.totalPriceWei||
-    ev.args.totalPriceWei!==ev.args.feeWei+ev.args.royaltyWei+ev.args.sellerProceedsWei||
-    ev.args.feeWei!==o.totalPriceWei*200n/10000n||
-    ev.args.royaltyWei>o.totalPriceWei*1000n/10000n||
-    ev.args.nonce!==o.nonce||ev.args.quantity!==o.quantity||
-    ev.args.tokenId!==o.tokenId||lc(ev.args.collection)!==lc(o.collection))
+  if(tx.value!==0n||lc(tx.from)!==lc(evArgs.seller)||lc(evArgs.buyer)!==lc(o.buyer)||
+    evArgs.totalPriceWei!==o.totalPriceWei||
+    evArgs.totalPriceWei!==evArgs.feeWei+evArgs.royaltyWei+evArgs.sellerProceedsWei||
+    evArgs.feeWei!==o.totalPriceWei*200n/10000n||
+    evArgs.royaltyWei>o.totalPriceWei*1000n/10000n||
+    evArgs.nonce!==o.nonce||evArgs.quantity!==o.quantity||
+    evArgs.tokenId!==o.tokenId||lc(evArgs.collection)!==lc(o.collection))
    throw Error("Accepted offer NFT, buyer/seller, fee, royalty or proceeds disagree");
   const transferName=o.standard===1?"Transfer":"TransferSingle";
   const transfers=parseEventLogs({abi:offerAbi,logs:ra.logs,eventName:transferName});
   const proof=transfers.filter(e=>
    lc(e.address)===lc(o.collection)&&
-   lc(e.args.from)===lc(ev.args.seller)&&lc(e.args.to)===lc(o.buyer)&&
+   lc(e.args.from)===lc(evArgs.seller)&&lc(e.args.to)===lc(o.buyer)&&
    (o.standard===1?e.args.tokenId===o.tokenId:
      e.args.id===o.tokenId&&e.args.value===o.quantity));
   if(proof.length!==1)throw Error("Independently matched real NFT transfer absent");
@@ -100,8 +106,8 @@ async function main(){
    if(balance<o.quantity)throw Error("ERC1155 buyer balance lower than transfer at block");
   }
  }else{
-  if(tx.value!==0n||ev.args.amountWei!==o.totalPriceWei||lc(ev.args.buyer)!==lc(o.buyer)||
-     ev.args.nonce!==o.nonce||!ev.args.recipient)
+  if(tx.value!==0n||evArgs.amountWei!==o.totalPriceWei||lc(evArgs.buyer)!==lc(o.buyer)||
+     evArgs.nonce!==o.nonce||!evArgs.recipient)
    throw Error("Refund recipient, UOS amount or offer nonce differs");
  }
  const db=getDb();
@@ -118,10 +124,10 @@ async function main(){
   throw Error("No real registered buyer offer matching the exact chain event");
  const logIndex=ev.logIndex;
  if(logIndex===undefined||logIndex===null)throw Error("Actual log index missing");
- const fee=kind==="accepted"?ev.args.feeWei:0n;
- const royalty=kind==="accepted"?ev.args.royaltyWei:0n;
- const proceeds=kind==="accepted"?ev.args.sellerProceedsWei:0n;
- const counterparty=kind==="accepted"?ev.args.seller:kind==="refunded"?ev.args.recipient:null;
+ const fee=kind==="accepted"?evArgs.feeWei:0n;
+ const royalty=kind==="accepted"?evArgs.royaltyWei:0n;
+ const proceeds=kind==="accepted"?evArgs.sellerProceedsWei:0n;
+ const counterparty=kind==="accepted"?evArgs.seller:kind==="refunded"?evArgs.recipient:null;
  const values=[18881,lc(hash),logIndex,lc(digest),kind,ra.blockNumber.toString(),
   lc(ra.blockHash),lc(o.buyer),counterparty?lc(counterparty):null,lc(o.collection),
   o.totalPriceWei.toString(),fee.toString(),royalty.toString(),proceeds.toString(),

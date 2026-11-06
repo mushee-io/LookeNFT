@@ -55,7 +55,8 @@ describe("M8 fully funded buyer offers on a LOCAL Hardhat VM, not Ultra Testnet"
   assert.equal(await ethers.provider.getBalance(await market.getAddress()),UOS);
   await reverts(()=>market.connect(buyer).fund(o,signature,{value:UOS}),"InvalidNonce");
   const otherOrder={...o,tokenId:2n};
-  await reverts(()=>market.connect(buyer).fund(otherOrder,await sign(market,buyer,otherOrder),{value:UOS}),"InvalidNonce");
+  const otherOrderSignature=await sign(market,buyer,otherOrder);
+  await reverts(()=>market.connect(buyer).fund(otherOrder,otherOrderSignature,{value:UOS}),"InvalidNonce");
  });
  it("seller separately approves and accepts ERC721; distributes seller fee and ERC2981 royalty atomically",async()=>{
   const o=await offer(market,nft,buyer,{minSellerProceedsWei:ethers.parseEther("0.93")});
