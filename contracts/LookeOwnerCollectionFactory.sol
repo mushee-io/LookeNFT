@@ -74,7 +74,7 @@ contract LookeOwnerCollectionFactory is Ownable, ReentrancyGuard {
         address royaltyReceiver_,
         uint96 royaltyBps_,
         bytes32 userSalt_
-    ) external nonReentrant returns (address collection) {
+    ) external onlyOwner nonReentrant returns (address collection) {
         bytes32 salt = deriveSalt(msg.sender, userSalt_);
         if (consumedSalt[salt]) revert SaltAlreadyConsumed();
         consumedSalt[salt] = true;
