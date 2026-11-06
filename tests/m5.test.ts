@@ -39,7 +39,8 @@ test("M5 rejects malformed addresses, phase, quantity, negative IDs and unsafe p
 test("M5 on-chain payment is disabled by default and both independent security gates are present",async()=>{
  const env=await readFile(new URL("../.env.example",import.meta.url),"utf8");
  const provider=await readFile(new URL("../components/WalletSessionProvider.tsx",import.meta.url),"utf8");
- const ui=await readFile(new URL("../app/mint/page.tsx",import.meta.url),"utf8");
+ const ui=await readFile(new URL("../components/CuratedMintFlow.tsx",import.meta.url),"utf8");
+ const wrapper=await readFile(new URL("../app/mint/page.tsx",import.meta.url),"utf8");
  const solidity=await readFile(new URL("../contracts/LookeMintPhases.sol",import.meta.url),"utf8");
  assert.match(env,/NEXT_PUBLIC_M5_ENABLE_MINTING=false/);
  assert.match(env,/NEXT_PUBLIC_M4_CANCUN_VERIFIED=false/);
@@ -49,6 +50,8 @@ test("M5 on-chain payment is disabled by default and both independent security g
  assert.match(provider,/mintNonces/);
  assert.match(ui,/simulateContract/);
  assert.match(ui,/primary-rpc-only/);
+ assert.match(wrapper,/curatedCollections/);
+ assert.match(wrapper,/mintAvailable/);
  assert.match(solidity,/MerkleProof\.verifyCalldata/);
  assert.match(solidity,/nonReentrant/);
  assert.match(solidity,/accruedProceeds/);
