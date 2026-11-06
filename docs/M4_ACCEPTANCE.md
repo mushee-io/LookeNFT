@@ -17,7 +17,7 @@ stacked draft PR against M3; it is **not** a live chain deployment or launch.
   sign-off is attached to this project.
 
 ## M4 smart-contract design
-- OpenZeppelin Contracts 5.6.1 pinned as an externally reviewed dependency;
+- OpenZeppelin Contracts 5.5.0 pinned as an externally reviewed dependency;
   *our custom factory/collections have not been independently audited*.
 - Deterministic `CREATE2` factory creates non-upgradeable creator-owned
   ERC-721 and ERC-1155 collections. Factory constructor explicitly refuses

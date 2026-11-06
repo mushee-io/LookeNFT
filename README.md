@@ -60,7 +60,7 @@ See `docs/M3_ACCEPTANCE.md` for checks and outstanding operator evidence.
 ## M4 — Collection factory and creator studio (stacked draft, not deployed)
 
 M4 implements Ultra EVM **Testnet-only** ERC-721/1155 collection contracts and
-a deterministic CREATE2 factory, using pinned OpenZeppelin Contracts 5.6.1,
+a deterministic CREATE2 factory, using pinned OpenZeppelin Contracts 5.5.0,
 solc-js 0.8.30 and Hardhat local VM. Creator ownership, reserve mint supply
 caps, ERC-2981 royalty signalling, metadata controls, pause/freeze and
 on-chain event evidence are covered by local tests. Upstream audited libraries

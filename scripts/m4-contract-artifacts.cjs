@@ -10,7 +10,7 @@ const result = {
   environment:"local-ci-only",
   chainIdTarget:18881,
   compiler:"solc-js "+version(),
-  openzeppelinContracts:"5.6.1",
+  openzeppelinContracts:"5.5.0",
   optimization:{viaIR:true,optimizerRuns:200,evmVersion:"paris"},
   creationBytecodeOnly:true,
   deployedOnTestnet:false,

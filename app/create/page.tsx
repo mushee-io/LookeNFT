@@ -82,22 +82,22 @@ export default function CreatePage() {
       const predicted = config.standard === "erc721"
         ? await rpc.readContract({
           address: factory, abi: factoryAbi, functionName: "predictERC721",
-          args: [creator, config.name, config.symbol, config.uri, config.totalCap, config.royaltyReceiver, config.royaltyBps, config.salt]
+          args: [creator, config.name, config.symbol, config.uri, config.totalCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
         })
         : await rpc.readContract({
           address: factory, abi: factoryAbi, functionName: "predictERC1155",
-          args: [creator, config.uri, config.totalCap, config.perIdCap, config.royaltyReceiver, config.royaltyBps, config.salt]
+          args: [creator, config.uri, config.totalCap, config.perIdCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
         });
       if (await rpc.getCode({ address: predicted }) !== undefined)
         throw new Error("Predicted CREATE2 address is already deployed; generate a new salt");
       const data = config.standard === "erc721"
         ? encodeFunctionData({
           abi: factoryAbi, functionName: "createERC721",
-          args: [config.name, config.symbol, config.uri, config.totalCap, config.royaltyReceiver, config.royaltyBps, config.salt]
+          args: [config.name, config.symbol, config.uri, config.totalCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
         })
         : encodeFunctionData({
           abi: factoryAbi, functionName: "createERC1155",
-          args: [config.uri, config.totalCap, config.perIdCap, config.royaltyReceiver, config.royaltyBps, config.salt]
+          args: [config.uri, config.totalCap, config.perIdCap, config.royaltyReceiver, BigInt(config.royaltyBps), config.salt]
         });
       setReviewed({ config, predicted, data, creator, factory });
     } catch(e) {
