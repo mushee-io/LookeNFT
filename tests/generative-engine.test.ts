@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { generatePlan, tokenMetadata, type TraitLayer } from "../lib/generative/engine";
 
 const layers: TraitLayer[] = [
-  { id:"base", name:"Faces", variants:Array.from({length:12},(_,i)=>({
-    id:"f"+i,name:"Face "+i,weight:i===11?1:10
+  { id:"base", name:"Faces", variants:Array.from({length:24},(_,i)=>({
+    id:"f"+i,name:"Face "+i,weight:i===23?1:10
   })) },
-  { id:"eyes", name:"Eyes", variants:Array.from({length:12},(_,i)=>({
-    id:"e"+i,name:"Eyes "+i,weight:i===11?1:10
+  { id:"eyes", name:"Eyes", variants:Array.from({length:24},(_,i)=>({
+    id:"e"+i,name:"Eyes "+i,weight:i===23?1:10
   })) },
-  { id:"hat", name:"Hats", variants:Array.from({length:80},(_,i)=>({
-    id:"h"+i,name:"Hat "+i,weight:i===79?1:10
+  { id:"hat", name:"Hats", variants:Array.from({length:20},(_,i)=>({
+    id:"h"+i,name:"Hat "+i,weight:i===19?1:10
   })) }
 ];
 test("generates reproducible 10,000 distinct punk trait combinations",()=>{
@@ -28,8 +28,9 @@ test("generates reproducible 10,000 distinct punk trait combinations",()=>{
 });
 test("saturated combinations still generate all assets without duplicates",()=>{
   const l:TraitLayer[]=[
-    {id:"a",name:"Face",variants:Array.from({length:100},(_,i)=>({id:"a"+i,name:String(i),weight:i===0?1000:1}))},
-    {id:"b",name:"Accessory",variants:Array.from({length:100},(_,i)=>({id:"b"+i,name:String(i),weight:i===0?1000:1}))}
+    {id:"a",name:"Face",variants:Array.from({length:50},(_,i)=>({id:"a"+i,name:String(i),weight:i===0?1000:1}))},
+    {id:"b",name:"Accessory",variants:Array.from({length:50},(_,i)=>({id:"b"+i,name:String(i),weight:i===0?1000:1}))}
+    ,    {id:"c",name:"Background",variants:Array.from({length:4},(_,i)=>({id:"c"+i,name:String(i),weight:10}))}
   ];
   const p=generatePlan(l,10000,"all");
   assert.equal(new Set(p.tokens.map(t=>t.picks.join(","))).size,10000);
