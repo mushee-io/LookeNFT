@@ -160,22 +160,14 @@ export default function CreateCollectionPage(){
   }catch(e){setError(e instanceof Error?e.message:"Publication was blocked.");}
   finally{setBusy(false);}
  }
- if(!wallet.authenticated||wallet.chainId!==18881)return <section className="operator-page">
-  <Link href="/explore" className="curated-back">← NFT collections</Link>
-  <p className="curated-overline">PRIVATE CREATE STUDIO</p><h1>Operator access required</h1>
-  <p className="operator-note">{!wallet.authenticated?
-   "Connect your wallet and sign in on Ultra EVM Testnet. Only the LookeNFT operator can create or publish collections.":
-   "You can preview a draft, but publishing requires the verified operator wallet."}</p>
-  <Link className="inline-link" href="/explore">Return to official collections</Link>
- </section>;
  const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
  return <section className="operator-page operator-create-page">
-  <Link className="curated-back" href="/admin">← Collection control</Link>
+  <Link className="curated-back" href="/explore">← NFT collections</Link>
   <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
   <h1>Create an NFT collection</h1>
   <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Drafts do not mint, deploy or charge anyone; real publishing is operator-only.</p>
-  {authorised===false&&<p className="operator-note"><strong>Preview-only mode.</strong> You can try the editor, but your signed-in wallet is not configured as the publishing operator.</p>}
-  {authorised===null&&<p className="operator-note">Checking publishing access. You can still design a preview.</p>}
+  {authorised===false&&<p className="operator-note"><strong>Design preview mode.</strong> Upload artwork, create a local preview, and inspect generated metadata without signing in. Only the configured operator wallet can deploy or publish a genuine NFT collection.</p>}
+  {authorised===null&&<p className="operator-note">Checking publisher permissions; local previews are available immediately.</p>}
   <div className="creator-steps" aria-label="Creation stages"><span className={stage==="edit"?"active":""}>1. Collection details</span><span className={stage==="preview"?"active":""}>2. Preview</span><span>3. Publish to market</span></div>
   {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
    <div className="creator-fields">
