@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
+import { makeCancunProbeCreationCode } from "@/lib/testnet/probe";
 import { createPublicClient, decodeFunctionData, encodeFunctionData, http, isAddress, toFunctionSelector, toHex, verifyTypedData, type Address, type Hex } from "viem";
 import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
 import { M7_MARKET_ADDRESS,marketAbi,marketTypes,listingDomain,hashListing,m7Gate,type Listing } from "@/lib/m7/market";
@@ -26,6 +27,7 @@ type WalletContextValue = {
   switchNetwork: () => Promise<void>;
   disconnect: () => Promise<void>;
   unlinkProfile: () => Promise<void>;
+  submitTestnetProbe: () => Promise<Hex>;
   submitFactoryDeployment: (factoryAddress: string, calldata: Hex) => Promise<Hex>;
   submitMint: (collection: string, calldata: Hex, valueWei: bigint) => Promise<Hex>;
   signMarketListing: (listing: Listing) => Promise<Hex>;
@@ -326,6 +328,37 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
    * Wallet prompts the user to confirm each call; no auto-broadcast or keys.
    * A factory deployment itself remains a separate human-authorised operation.
    */
+  /**
+   * A tiny user-approved TESTNET ONLY Cancun probe. A real on-chain receipt is
+   * checked separately; this function never claims a successful deployment.
+   * No private keys, no arbitrary calldata or arbitrary recipient address.
+   */
+  async function submitTestnetProbe(): Promise<Hex> {
+    if(ACTIVE_NETWORK.chainId!==18881)throw Error("Probe locked to Ultra EVM Testnet chain 18881");
+    const provider=providerRef.current,wallet=address,rev=sequence.current;
+    if(!provider||!wallet||!session||pending)throw Error("Connect and sign into Ultra EVM Testnet first");
+    const [wallets,remoteChain,fresh]=await Promise.all([
+      provider.request({method:"eth_accounts"}),
+      provider.request({method:"eth_chainId"}),
+      apiSession()
+    ]);
+    if(validAccounts(wallets)[0]?.toLowerCase()!==wallet.toLowerCase()||
+       hexChain(remoteChain)!==18881||sequence.current!==rev||
+       fresh?.wallet.toLowerCase()!==wallet.toLowerCase()||
+       fresh?.chainId!==18881||session.wallet.toLowerCase()!==wallet.toLowerCase())
+      throw Error("Wallet or authenticated Testnet session changed; aborting");
+    setPending(true);
+    try {
+      const hash=await provider.request({
+        method:"eth_sendTransaction",
+        params:[{from:wallet,data:makeCancunProbeCreationCode(),value:"0x0"}]
+      });
+      if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
+        throw Error("Wallet did not return a canonical Testnet transaction hash");
+      return hash as Hex;
+    }finally{setPending(false);}
+  }
+
   async function submitFactoryDeployment(factoryAddress: string, calldata: Hex): Promise<Hex> {
     if (process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED !== "true")
       throw new Error("Ultra EVM Testnet Cancun opcode compatibility is not operator-verified");
@@ -716,7 +749,7 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitTestnetProbe, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>
