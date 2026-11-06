@@ -165,6 +165,10 @@ export default function CreateCollectionPage(){
   <Link className="curated-back" href="/explore">← NFT collections</Link>
   <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
   <h1>Create an NFT collection</h1>
+  <div className="gen-studio-link">
+    <div><strong>Want 10,000 different characters?</strong><p>Upload transparent face, hair, eyes and accessory layers; choose rarity weights; generate unique NFT artwork and metadata.</p></div>
+    <Link className="gen-studio-open" href="/create/generative">Open Generative Art Studio ↗</Link>
+  </div>
   <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Drafts do not mint, deploy or charge anyone; real publishing is operator-only.</p>
   {authorised===false&&<p className="operator-note"><strong>Design preview mode.</strong> Upload artwork, create a local preview, and inspect generated metadata without signing in. Only the configured operator wallet can deploy or publish a genuine NFT collection.</p>}
   {authorised===null&&<p className="operator-note">Checking publisher permissions; local previews are available immediately.</p>}
