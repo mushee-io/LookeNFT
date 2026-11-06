@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/server/auth";
+import { requireOperator } from "@/lib/server/curation";
 import { getDb } from "@/lib/server/db";
 import { ApiError,apiFailure,noStore } from "@/lib/server/http";
 import { guardMultipart,readMultipart,validateMedia } from "@/lib/m6/security";
@@ -18,7 +18,7 @@ export async function POST(request:NextRequest){
   let id:string|null=null;
   let owner:string|null=null;
   try{
-    const session=await requireSession(request);
+    const session={ wallet: await requireOperator(request) };
     owner=session.wallet;
     if(!pinningReady()||process.env.M6_MEDIA_UPLOADS_ENABLED!=="true")
       throw new ApiError(503,"Media IPFS pinning disabled until operator credentials and security gates pass");
