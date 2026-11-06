@@ -102,8 +102,8 @@ describe("M8 fully funded buyer offers on a LOCAL Hardhat VM, not Ultra Testnet"
   await(await market.connect(buyer).fund(o,await sign(market,buyer,o),{value:UOS})).wait();
   await(await market.connect(buyer).cancelNonce(o.nonce)).wait();
   await reverts(()=>market.connect(seller).accept(o),"InvalidNonce");
-  const before=await ethers.provider.getBalance(other.address);
   await reverts(()=>market.connect(other).refundTo(o,other.address),"NotBuyer");
+  const before=await ethers.provider.getBalance(other.address);
   await(await market.connect(buyer).refundTo(o,other.address)).wait();
   assert.equal(await ethers.provider.getBalance(other.address)-before,UOS);
   assert.equal(await market.offerState(await market.offerHash(o)),3n);

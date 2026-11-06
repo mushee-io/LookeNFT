@@ -85,11 +85,13 @@ async function main(){
    throw Error("Accepted offer NFT, buyer/seller, fee, royalty or proceeds disagree");
   const transferName=o.standard===1?"Transfer":"TransferSingle";
   const transfers=parseEventLogs({abi:offerAbi,logs:ra.logs,eventName:transferName});
-  const proof=transfers.filter(e=>
-   lc(e.address)===lc(o.collection)&&
-   lc(e.args.from)===lc(evArgs.seller)&&lc(e.args.to)===lc(o.buyer)&&
-   (o.standard===1?e.args.tokenId===o.tokenId:
-     e.args.id===o.tokenId&&e.args.value===o.quantity));
+  const proof=transfers.filter(e=>{
+   const moved=e.args as unknown as {from:Address;to:Address;tokenId:bigint;id:bigint;value:bigint};
+   return e.eventName===transferName&&lc(e.address)===lc(o.collection)&&
+     lc(moved.from)===lc(evArgs.seller)&&lc(moved.to)===lc(o.buyer)&&
+     (o.standard===1?moved.tokenId===o.tokenId:
+       moved.id===o.tokenId&&moved.value===o.quantity);
+  });
   if(proof.length!==1)throw Error("Independently matched real NFT transfer absent");
   if(o.standard===1){
    const owner=await a.readContract({address:o.collection,
