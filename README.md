@@ -306,3 +306,32 @@ Detailed dependencies: `docs/M11_ACCEPTANCE.md`.
 and evidence-backed Testnet acceptance/human launch or NO-GO decision.
 No launch if independent sources, human security audit or real wallet
 transaction receipts are missing.
+
+## M12 — FINAL LookeNFT Testnet acceptance (NO_GO)
+
+This **twelfth and final** milestone closes the stacked M1–M12 engineering
+sequence with a literal, independently challengeable **NO_GO** assessment.
+It adds `/final-acceptance` and operator-only `/api/final-acceptance`,
+an immutable digest of the **18 M11 evidence gates**, replay-protected
+signed human **candidate** statements from **two separate EdDSA reviewer
+issuers**, and bounded two-RPC+Blockscout/bytecode Testnet-only probes.
+
+All final records enforce `decision='NO_GO'`, no financial execution,
+no human auto-approval, no mainnet and no public beta **at SQL level**.
+Even a signed `GO_PROPOSAL_UNVERIFIED` remains a *candidate* and cannot
+change this decision. No real Social issuer, wallet receipts, authenticated
+Cloudinary/ClamAV/Pinata logs, security audit, production restore or
+Blockscout resolution has been independently provided.
+
+The operator-only `npm run m12:source-check` is OFF without an explicit
+Testnet flag and real approved provider endpoints, required runtime code
+hashes and independent Blockscout source. Its output always remains
+`NO_GO`, even if a read-only block/bytecode check succeeds: provider
+identity, live NFT ownership, source security, real human wallet approval
+and contract audit are separate gates.
+
+The complete inherited TypeScript, Next.js production build, CI-local
+PostgreSQL full restore/rollback and pinned 40 Solidity regressions run
+unchanged. Synthetic CI fixtures never become production Testnet records.
+See `docs/M12_FINAL_DECISION.md` for the final evidence inventory,
+operator acceptance instructions, precise blockers and release NO-GO.

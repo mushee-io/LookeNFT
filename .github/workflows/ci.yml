@@ -1,4 +1,4 @@
-name: M11 secure signed-source revocation, moderated NFT evidence and operator acceptance NO-GO
+name: M12 FINAL Ultra EVM Testnet source-backed GO/NO-GO acceptance, no financial execution
 on:
   pull_request:
   push:
@@ -39,14 +39,14 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Apply PostgreSQL migration
         run: |
-          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));await db.query(fs.readFileSync("db/migrations/002_m3_nft_indexer.sql","utf8"));await db.query(fs.readFileSync("db/migrations/003_m5_mint_receipts.sql","utf8"));await db.query(fs.readFileSync("db/migrations/004_m6_creator_media.sql","utf8"));await db.query(fs.readFileSync("db/migrations/005_m7_fixed_price_listings.sql","utf8"));await db.query(fs.readFileSync("db/migrations/006_m8_funded_offers.sql","utf8"));await db.query(fs.readFileSync("db/migrations/007_m9_market_operations.sql","utf8"));await db.query(fs.readFileSync("db/migrations/008_m10_social_nft_bridge.sql","utf8"));await db.query(fs.readFileSync("db/migrations/009_m11_security_acceptance.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
-      - name: Verify TypeScript, M1–M11 issuer-revocation and local PostgreSQL security tests and Next build
+          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));await db.query(fs.readFileSync("db/migrations/002_m3_nft_indexer.sql","utf8"));await db.query(fs.readFileSync("db/migrations/003_m5_mint_receipts.sql","utf8"));await db.query(fs.readFileSync("db/migrations/004_m6_creator_media.sql","utf8"));await db.query(fs.readFileSync("db/migrations/005_m7_fixed_price_listings.sql","utf8"));await db.query(fs.readFileSync("db/migrations/006_m8_funded_offers.sql","utf8"));await db.query(fs.readFileSync("db/migrations/007_m9_market_operations.sql","utf8"));await db.query(fs.readFileSync("db/migrations/008_m10_social_nft_bridge.sql","utf8"));await db.query(fs.readFileSync("db/migrations/009_m11_security_acceptance.sql","utf8"));await db.query(fs.readFileSync("db/migrations/010_m12_final_acceptance.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
+      - name: Verify TypeScript, M1–M12 final no-go and independent signature adversarial tests, PostgreSQL and Next build
         run: npm run check
       - name: Install local PostgreSQL client for CI-only scratch restore rehearsal
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
-      - name: Rehearse full logical DB restore and protected rollback ONLY in ephemeral localhost CI
+      - name: Rehearse M1–M12 full logical DB restore and rollback ONLY on ephemeral localhost CI
         env:
           M11_LOCAL_RESTORE_REHEARSAL: 'true'
         run: npm run m11:restore-rehearsal
@@ -66,11 +66,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m3-real-source-check
+          name: m12-blocked-real-source-check
           path: .artifacts/m3-network-check.json
           if-no-files-found: warn
 
-  m11-solidity-regression:
+  m12-solidity-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -88,12 +88,12 @@ jobs:
         run: npm run contracts:compile
       - name: Verify bytecode limits and compile manifest (local evidence only)
         run: npm run contracts:analyze
-      - name: M1–M11 unchanged Solidity NFT, EIP712 custody, nonce, refund and fuzz regressions
+      - name: M1–M12 unchanged Solidity NFT, EIP712 custody, nonce, refund and fuzz regressions
         run: npm run contracts:test
       - name: Preserve compiled bytecode evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m11-unchanged-market-contracts-local-only
+          name: m12-unchanged-market-contracts-local-only
           path: .artifacts/m8-compiled-bytecode.json
           if-no-files-found: warn

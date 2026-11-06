@@ -23,14 +23,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               <nav className="site-nav" aria-label="Main navigation">
                 <Link href="/">Home</Link><Link href="/explore">Explore</Link>
                 <Link href="/create">Create</Link><Link href="/market">Market</Link><Link href="/offers">Bids</Link><Link href="/market/operations">Orderbook</Link><Link href="/studio">Studio</Link><Link href="/mint">Mint</Link><Link href="/portfolio">My NFTs</Link>
-                <Link href="/activity">Activity</Link><Link href="/social-link">Social × NFTs</Link><Link href="/acceptance">Acceptance</Link>
+                <Link href="/activity">Activity</Link><Link href="/social-link">Social × NFTs</Link><Link href="/acceptance">Acceptance</Link><Link href="/final-acceptance">Final M12</Link>
               </nav>
               <WalletConnect />
             </header>
             <main id="content">{children}</main>
             <footer className="footer">
               <span>Looke NFT · Ultra EVM only</span>
-              <span>M11 source acceptance and security groundwork · All integrations and trading disabled by default</span>
+              <span>M12 FINAL Testnet acceptance: NO-GO · All integrations, financial execution and mainnet disabled</span>
             </footer>
           </div>
         </WalletSessionProvider>

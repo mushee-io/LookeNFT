@@ -1,6 +1,6 @@
 {
   "name": "lookenft",
-  "version": "0.11.0",
+  "version": "1.0.0-final-engineering-no-go",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -36,7 +36,10 @@
     "test:m11": "node --import tsx --test tests/m11.test.ts tests/m11.integration.test.ts",
     "m11:revocation": "tsx scripts/m11-apply-revocation.ts",
     "m11:check-sources": "tsx scripts/m11-check-operator-sources.ts",
-    "m11:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts"
+    "m11:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts",
+    "test:m12": "node --import tsx --test tests/m12.test.ts tests/m12.integration.test.ts",
+    "m12:source-check": "tsx scripts/m12-readonly-source-check.ts",
+    "m12:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts"
   },
   "dependencies": {
     "next": "16.4.5",

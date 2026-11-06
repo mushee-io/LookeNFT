@@ -214,3 +214,10 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
 .creator-page .studio-assets .studio-asset{overflow-wrap:anywhere}
 .creator-page .creator-preflight textarea{width:100%;max-width:100%;resize:vertical}
 @media(max-width:760px){.creator-page .studio-assets{grid-template-columns:1fr}}
+
+/* M12 final NO-GO operator review: responsive evidence list and hashes. */
+.creator-page code{overflow-wrap:anywhere}
+.creator-page .studio-asset{min-width:0}
+.creator-page .creator-preflight label{display:block;max-width:100%}
+.creator-page .creator-preflight textarea{width:100%;max-width:100%;font:inherit}
+@media(max-width:760px){.creator-page .studio-assets{grid-template-columns:1fr}}
