@@ -221,3 +221,50 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
 .creator-page .creator-preflight label{display:block;max-width:100%}
 .creator-page .creator-preflight textarea{width:100%;max-width:100%;font:inherit}
 @media(max-width:760px){.creator-page .studio-assets{grid-template-columns:1fr}}
+
+
+/* Alpha-inspired LookeNFT homepage (M12 preview); scoped to the landing route. */
+body:has(.looke-landing) { --ink:#f6f1f8; --muted:#aaa0b3; --purple:#ff55a0; --purple-dark:#e83a8a; --line:#2b2234; --bg:#0c0710; --white:#17101e; background:#0c0710; color:#f6f1f8; }
+body:has(.looke-landing) .site-shell { min-height:100vh; }
+body:has(.looke-landing) .site-header { max-width:none; width:100%; padding:25px max(24px,calc((100vw - 1180px)/2)); border-bottom:0; }
+body:has(.looke-landing) .site-nav, body:has(.looke-landing) .wallet-container { display:none; }
+body:has(.looke-landing) .brand { font-size:20px; letter-spacing:-.7px; gap:11px; }
+body:has(.looke-landing) .brand-symbol { width:32px; height:32px; color:#ff55a0; background:transparent; font-size:30px; border-radius:0; font-weight:900; font-style:italic; }
+body:has(.looke-landing) .brand-nft { color:#ff55a0; }
+body:has(.looke-landing) .site-header:after { content:"testnet preview"; margin-left:auto; color:#aaa0b3; border:1px solid #3a2b42; border-radius:100px; font:12px ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.3px; padding:6px 12px; white-space:nowrap; }
+body:has(.looke-landing) main { max-width:none; padding:0; display:flex; flex:1; }
+body:has(.looke-landing) .footer { display:none; }
+.looke-landing { min-height:calc(100vh - 90px); flex:1; width:100%; display:flex; flex-direction:column; justify-content:space-between; background:radial-gradient(ellipse 400px 200px at 50% 40%,#35102455,transparent 80%),#0c0710; }
+.looke-landing-center { width:100%; max-width:900px; margin:auto; padding:90px 22px 100px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.looke-hero-mark { height:160px; width:175px; margin:0 auto 24px; position:relative; color:#ff55a0; text-shadow:0 0 68px #ff55a055; }
+.looke-logo-l { font-size:158px; line-height:1; font-weight:900; font-style:italic; letter-spacing:-13px; }
+.looke-logo-spark { font-size:51px; position:absolute; right:8px; top:6px; }
+.looke-kicker { font-size:11px; letter-spacing:2.6px; font-weight:750; color:#ff6bad; margin:8px 0 22px; }
+.looke-landing h1 { font-size:clamp(37px,5.2vw,64px); line-height:1.12; letter-spacing:-2.8px; margin:0; font-weight:800; }
+.looke-landing h1 span { color:#ff55a0; }
+.looke-landing-copy { font-size:clamp(15px,1.6vw,19px); color:#aea5b6; line-height:1.7; max-width:680px; margin:20px auto 24px; }
+.looke-landing-features { font:12px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace; color:#a89caa; margin:0 auto 28px; }
+.looke-landing-features span { color:#ff55a0; padding:0 11px; }
+.looke-landing-actions { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
+.looke-landing-actions a { display:inline-flex; align-items:center; justify-content:center; gap:12px; font-size:14px; font-weight:750; padding:14px 23px; border-radius:100px; transition:transform .15s,background .15s; }
+.looke-landing-actions a:hover { transform:translateY(-2px); }
+.looke-landing-primary { background:#ff55a0; color:#160917; }
+.looke-landing-primary:hover { background:#ff7ab7; }
+.looke-landing-secondary { background:#211629; border:1px solid #3a2a42; color:#f6f1f8; }
+.looke-landing-secondary:hover { background:#2d1e35; }
+.looke-landing-notice { font-size:11px; color:#8e8295; line-height:1.6; margin:22px auto 0; }
+.looke-landing-bottom { border-top:1px solid #302437; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; color:#958a9f; font-size:12px; width:100%; padding:28px max(24px,calc((100vw - 1180px)/2)); }
+.looke-landing-bottom-links { display:flex; gap:22px; flex-wrap:wrap; }
+.looke-landing-bottom a:hover { color:#ff55a0; }
+@media(max-width:700px) {
+ body:has(.looke-landing) .site-header { padding:18px; }
+ body:has(.looke-landing) .brand { font-size:18px; }
+ .looke-landing-center { padding:56px 20px 80px; }
+ .looke-hero-mark { transform:scale(.8); margin-bottom:0; }
+ .looke-landing h1 { letter-spacing:-1.8px; }
+ .looke-landing-features { font-size:10px; }
+ .looke-landing-features span { padding:0 4px; }
+ .looke-landing-bottom { padding:24px 20px; justify-content:center; text-align:center; }
+ .looke-landing-bottom-links { justify-content:center; }
+}
+@media(prefers-reduced-motion:reduce) { .looke-landing-actions a { transition:none; } }
