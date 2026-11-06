@@ -13,10 +13,15 @@ const sha=(x:string)=>createHash("sha256").update(x).digest("hex");
 const cidPattern=/^(bafy[a-z2-7]{40,100}|Qm[1-9A-HJ-NP-Za-km-z]{44})$/;
 export function normalizedMetadataURI(uri:string,standard:NFTStandard,id:bigint):string{
  if(typeof uri!=="string"||uri.length>1024||
-    !/^ipfs:\/\/(bafy[a-z2-7]{40,100}|Qm[1-9A-HJ-NP-Za-km-z]{44})(\/[A-Za-z0-9._~-]{1,100})?$/.test(uri))
+    !/^ipfs:\/\/(bafy[a-z2-7]{40,100}|Qm[1-9A-HJ-NP-Za-km-z]{44})(\/[A-Za-z0-9._~{}-]{1,100})?$/.test(uri))
   throw new ApiError(409,"Metadata must use a pinned IPFS CID with a safe relative path");
- if(standard!=="erc1155")return uri;
- return uri.replaceAll("{id}",id.toString(16).padStart(64,"0"));
+ if(standard==="erc721"&&uri.includes("{id}"))
+  throw new ApiError(409,"ERC721 metadata must not contain ERC1155 token ID placeholders");
+ if(standard==="erc1155"&&uri.includes("{id}"))
+  return uri.replaceAll("{id}",id.toString(16).padStart(64,"0"));
+ if(uri.includes("{")||uri.includes("}"))
+  throw new ApiError(409,"Unexpected metadata placeholder");
+ return uri;
 }
 export async function verifyPinnedMetadata(
  data:{standard:NFTStandard;tokenId:bigint;primaryUri:string;

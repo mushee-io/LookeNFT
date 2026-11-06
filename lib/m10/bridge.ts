@@ -129,7 +129,7 @@ export async function profileForWallet(wallet:string){
  * Looke Social signed viewer-specific block/mute policy issuer is absent.
  * Only explicit one-subject signed visibility proofs may reveal content.
  */
-export async function publicCreatorDirectory(_search:string,_limit=20):Promise<never>{
+export async function publicCreatorDirectory(_search:string,_limit=20):Promise<{profiles:unknown[];source:string;blockedRelationshipReviewRequired:boolean}>{
  throw new ApiError(503,"Public directory disabled: require one-use viewer-bound Looke Social block/mute proof per creator");
 }
 export async function limitSocialWallet(wallet:string,action:"read"|"sync"|"avatar"|"directory",limit=30){
