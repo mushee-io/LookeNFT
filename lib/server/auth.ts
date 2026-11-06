@@ -32,13 +32,13 @@ Issued At: ${issuedAt}
 Expiration Time: ${expiresAt}`;
 }
 
-export async function issueChallenge(rawAddress: unknown, chainId: unknown) {
+export async function issueChallenge(rawAddress: unknown, chainId: unknown, request?: NextRequest) {
   const address = walletAddress(rawAddress);
   validateChainId(chainId);
   const nonce = randomBytes(18).toString("hex");
   const issuedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS).toISOString();
-  const message = createChallengeMessage(address, nonce, issuedAt, expiresAt);
+  const message = createChallengeMessage(address, nonce, issuedAt, expiresAt, appOrigin(request));
   await inTransaction(async (db) => {
     // Row-level serialization of concurrent challenge issuance for the same address.
     await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [address]);
