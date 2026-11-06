@@ -11,7 +11,7 @@ export class ApiError extends Error {
 export function appOrigin(request?: NextRequest): URL {
   const configured = process.env.APP_ORIGIN?.trim() || "";
   const candidate = request
-    ? new URL(request.url)
+    ? new URL(new URL(request.url).origin)
     : new URL(configured || (process.env.VERCEL_URL ? "https://" + process.env.VERCEL_URL :
         process.env.NODE_ENV !== "production" ? "http://localhost:3000" : "https://looke-ss.vercel.app"));
   const hostname = candidate.hostname.toLowerCase();
@@ -20,7 +20,7 @@ export function appOrigin(request?: NextRequest): URL {
     process.env.VERCEL_BRANCH_URL || "",
     process.env.VERCEL_PROJECT_PRODUCTION_URL || "",
     "looke-ss.vercel.app"].filter(Boolean).map(x => x.toLowerCase());
-  const verifiedVercelPreview = /^looke(?:-ss)?-[a-z0-9-]+-mushee-ios-projects\\.vercel\\.app$/.test(hostname);
+  const verifiedVercelPreview = /^looke(?:-ss)?-[a-z0-9-]+-mushee-ios-projects\.vercel\.app$/.test(hostname);
   const devLocalhost = process.env.NODE_ENV !== "production" &&
     ["localhost", "127.0.0.1"].includes(hostname);
   if (request && !(aliases.includes(hostname) || verifiedVercelPreview || devLocalhost))
