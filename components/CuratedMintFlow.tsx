@@ -84,7 +84,7 @@ export default function CuratedMintFlow({collection,phaseId}:{collection:string;
         rpc.readContract({address:collection,abi:mintAbi,functionName:"lifetimeMintedByWallet",args:[wallet.address as Address]}),
         rpc.getBlock({blockTag:"latest"})
       ]);
-      if(factoryVersion!==2n||!listed||!code||code==="0x")
+      if(factoryVersion!==3n||!listed||!code||code==="0x")
         throw new Error("Collection is not approved by an on-chain M5 factory");
       if(!has721&&!has1155)throw new Error("Collection does not expose a supported NFT interface");
       const standard=has721?"erc721":"erc1155";
