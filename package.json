@@ -1,6 +1,6 @@
 {
   "name": "lookenft",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -31,7 +31,8 @@
     "offers:contracts": "hardhat test contract-tests/LookeFundedOffers.test.js",
     "market:sync-readonly": "tsx scripts/m9-market-once.ts",
     "market:snapshots": "tsx scripts/m9-snapshot-orders.ts",
-    "test:m9": "node --import tsx --test tests/m9.test.ts tests/m9.integration.test.ts"
+    "test:m9": "node --import tsx --test tests/m9.test.ts tests/m9.integration.test.ts",
+    "test:m10": "node --import tsx --test tests/m10.test.ts tests/m10.integration.test.ts"
   },
   "dependencies": {
     "next": "16.4.5",
