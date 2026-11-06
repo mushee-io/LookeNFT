@@ -201,3 +201,32 @@ default**, pending actual operator wallet signatures, audited contract
 compatibility and real source-backed checks. Apply `006_m8_funded_offers.sql`
 after migrations 001–005. See `docs/M8_ACCEPTANCE.md`. M1–M7 remain
 unmerged drafts, with no live bid, UOS escrow or financial release.
+
+## M9 — Canonical read-only marketplace operations (engineering only)
+
+M9 adds `/market/operations` with wallet-scoped **verified** M7/M8 sales
+counts and exact UOS volume, read-only order snapshots, private source-backed
+activity notifications and separately fetched two-RPC on-chain fee/royalty/gas
+previews. **A signed order is not a sale**; the floor shown from an observed
+seller order is explicitly *indicative*, never claimed verified or executable.
+
+`lib/m9/reconcile.ts` and `scripts/m9-market-once.ts` implement bounded,
+operator-only **Ultra EVM Testnet 18881** event scanning: two distinct RPCs
+must match chain IDs, approved deployed M7/M8 contract bytecode, every block's
+parent hash, exact log identities and official Blockscout canonical block
+hashes. Verified data is journalled in PostgreSQL migration 007 with unique
+event keys and atomic cursor checkpoints; a reorg triggers bounded rollback
+and **quarantine of historical independent attestations** rather than counting
+orphaned settlements. Failed Blockscout HTTP 404 = no checkpoint advancement.
+
+Read-only `market:snapshots` checks up to 30 real M7 and 30 independently
+funded M8 candidates on two RPCs at the confirmed block; provisional and
+unfunded bids never become executable orderbook records. Authenticated wallet
+read APIs have atomic PostgreSQL per-wallet request buckets; notifications
+are wallet-private and can only originate from independently attested,
+canonically matched event evidence. No sample NFT/volume/activity is seeded.
+
+M9 is a stacked draft on M8. **No worker is scheduled** and every M9 scanner
+and wallet financial flag is OFF by default. Real M7/M8 deployment, human
+wallet acceptance, Blockscout, production operator PostgreSQL, Cancun opcode
+compatibility and independent audits remain NO-GO. See `docs/M9_ACCEPTANCE.md`.

@@ -23,10 +23,11 @@ describe("M7 property-based atomic UOS sale accounting and nonce replay (local V
   await(await collection.connect(seller).setApprovalForAll(await market.getAddress(),true)).wait();
  });
  it("property: no positive value disappears, split equals exact price, and same nonce cannot sell twice",async function(){
+  let uniqueIteration=0n;
   await fc.assert(fc.asyncProperty(
    fc.integer({min:1,max:15}),fc.integer({min:1,max:300000}),fc.integer({min:1,max:1000000}),
    async(q,priceMicro,seed)=>{
-    const nonce=BigInt(seed)*1000n+BigInt(q);
+    const nonce=(++uniqueIteration)*1000000000000n+BigInt(seed)*1000n+BigInt(q);
     const price=BigInt(priceMicro)*10n**12n;
     const total=price*BigInt(q);
     const now=BigInt((await ethers.provider.getBlock("latest")).timestamp);

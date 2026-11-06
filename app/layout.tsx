@@ -22,7 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               </Link>
               <nav className="site-nav" aria-label="Main navigation">
                 <Link href="/">Home</Link><Link href="/explore">Explore</Link>
-                <Link href="/create">Create</Link><Link href="/market">Market</Link><Link href="/offers">Bids</Link><Link href="/studio">Studio</Link><Link href="/mint">Mint</Link><Link href="/portfolio">My NFTs</Link>
+                <Link href="/create">Create</Link><Link href="/market">Market</Link><Link href="/offers">Bids</Link><Link href="/market/operations">Orderbook</Link><Link href="/studio">Studio</Link><Link href="/mint">Mint</Link><Link href="/portfolio">My NFTs</Link>
                 <Link href="/activity">Activity</Link>
               </nav>
               <WalletConnect />
@@ -30,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
             <main id="content">{children}</main>
             <footer className="footer">
               <span>Looke NFT · Ultra EVM only</span>
-              <span>M8 funded buyer offer groundwork · Escrow and financial execution disabled by default</span>
+              <span>M9 source-backed market operations · Trading and funding disabled by default</span>
             </footer>
           </div>
         </WalletSessionProvider>

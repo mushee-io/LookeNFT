@@ -193,3 +193,13 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
 .creator-page .creator-ack{display:flex;align-items:flex-start;gap:10px}
 .creator-page .creator-ack input{flex:none;margin-top:4px}
 @media(max-width:780px){.creator-page .studio-grid{grid-template-columns:1fr}}
+
+/* M9 source-driven market dashboard: non-custodial, responsive no-data states. */
+.creator-page .studio-action-row{flex-wrap:wrap;gap:10px}
+.creator-page .studio-action-row label{max-width:100%;overflow-wrap:anywhere}
+.creator-page .studio-action-row input{width:min(420px,100%)}
+.creator-page .creator-preflight dl dd{overflow-wrap:anywhere}
+@media(max-width:760px){
+ .creator-page .studio-action-row button{max-width:100%}
+ .creator-page .studio-action-row input{width:100%}
+}
