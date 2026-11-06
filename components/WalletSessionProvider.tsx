@@ -2,8 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
-import { createPublicClient, decodeFunctionData, http, isAddress, toFunctionSelector, toHex, type Address, type Hex } from "viem";
-import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
+import { isAddress, toFunctionSelector, type Hex } from "viem";
 import { describeWalletError, ensureChain, hexChain, validAccounts, type Eip1193Provider, type WalletOption } from "@/lib/wallet-provider";
 
 type Session = { authenticated: boolean; wallet: string; chainId: number; expiresAt: string; profileId: string | null };
@@ -24,7 +23,6 @@ type WalletContextValue = {
   disconnect: () => Promise<void>;
   unlinkProfile: () => Promise<void>;
   submitFactoryDeployment: (factoryAddress: string, calldata: Hex) => Promise<Hex>;
-  submitMint: (collection: string, calldata: Hex, valueWei: bigint) => Promise<Hex>;
   dismissPairing: () => void;
 };
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -362,76 +360,11 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
-
-  /** M5: every native-UOS payment requires a fresh explicit wallet approval.
-   * Revalidate factory, collection, phase price, nonce and identity after review.
-   */
-  async function submitMint(collection: string, calldata: Hex, valueWei: bigint): Promise<Hex> {
-    if (process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED !== "true" ||
-        process.env.NEXT_PUBLIC_M5_ENABLE_MINTING !== "true")
-      throw new Error("Real Testnet minting is disabled pending operator evidence");
-    const factory = process.env.NEXT_PUBLIC_M4_FACTORY_ADDRESS || "";
-    if (!isAddress(factory) || !isAddress(collection) || ACTIVE_NETWORK.chainId !== 18881)
-      throw new Error("Mint factory, collection or Ultra Testnet configuration is invalid");
-    if (valueWei < 0n || valueWei > 1000n * 10n ** 18n)
-      throw new Error("Wallet payment exceeds M5 Testnet transaction safety limit (1000 UOS)");
-    const decoded = decodeFunctionData({ abi: mintCallAbi, data: calldata });
-    if (decoded.functionName !== "mintFromPhase" || !decoded.args)
-      throw new Error("Only the reviewed mintFromPhase call is allowed");
-    const [phaseId, , quantity, , , nonce] = decoded.args;
-    const provider = providerRef.current;
-    const expectedWallet = address;
-    const rev = sequence.current;
-    if (!provider || !expectedWallet || !session || pending)
-      throw new Error("Explicitly connect and authenticate a Testnet wallet");
-    const rpc = createPublicClient({
-      transport: http(ACTIVE_NETWORK.rpcUrl, { timeout: 12_000, retryCount: 1 }),
-    });
-    const [rpcChain, version, registered, code, phase, chainNonce, wallets, walletChain, fresh] =
-      await Promise.all([
-        rpc.getChainId(),
-        rpc.readContract({ address: factory, abi: [
-          { type: "function", name: "VERSION", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
-        ] as const, functionName: "VERSION" }),
-        rpc.readContract({ address: factory, abi: [
-          { type: "function", name: "isCollection", stateMutability: "view", inputs: [{ name: "collection", type: "address" }], outputs: [{ type: "bool" }] },
-        ] as const, functionName: "isCollection", args: [collection] }),
-        rpc.getCode({ address: collection }),
-        rpc.readContract({ address: collection, abi: mintAbi, functionName: "mintPhases", args: [phaseId] }),
-        rpc.readContract({ address: collection, abi: mintAbi, functionName: "mintNonces", args: [phaseId, expectedWallet as Address] }),
-        provider.request({ method: "eth_accounts" }),
-        provider.request({ method: "eth_chainId" }),
-        apiSession(),
-      ]);
-    if (rpcChain !== 18881 || version !== 2n || !registered || !code || code === "0x")
-      throw new Error("Collection is not deployed by the reviewed M5 factory on Ultra Testnet");
-    const [,end,unitPrice,,,,,cancelled] = phase;
-    if (cancelled || phaseId === 0n || nonce !== chainNonce || valueWei !== requiredPayment(unitPrice, quantity))
-      throw new Error("Mint phase, account nonce or quoted UOS payment has changed");
-    if (validAccounts(wallets)[0]?.toLowerCase() !== expectedWallet.toLowerCase() ||
-        hexChain(walletChain) !== 18881 || sequence.current !== rev ||
-        fresh?.wallet.toLowerCase() !== expectedWallet.toLowerCase() || fresh.chainId !== 18881 ||
-        session.wallet.toLowerCase() !== expectedWallet.toLowerCase())
-      throw new Error("Wallet, authenticated session or Testnet chain has changed");
-    setPending(true);
-    try {
-      const tx = await provider.request({
-        method: "eth_sendTransaction",
-        params: [{ from: expectedWallet, to: collection, data: calldata, value: toHex(valueWei) }],
-      });
-      if (typeof tx !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(tx))
-        throw new Error("Wallet did not return a valid transaction hash");
-      return tx as Hex;
-    } finally {
-      setPending(false);
-    }
-  }
-
   return (
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, submitFactoryDeployment, submitMint, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitFactoryDeployment, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>

@@ -152,3 +152,25 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
 .creator-form textarea:focus-visible{ outline:2px solid var(--purple); outline-offset:1px; }
 .creator-preflight .creator-json {white-space:pre-wrap;overflow-wrap:anywhere;}
 .creator-preflight a,.index-warning a{color:var(--purple);text-decoration:underline;overflow-wrap:anywhere}
+
+/* M6 secure creator-media dashboard */
+.studio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start;margin:25px 0}
+.studio-grid .creator-form{margin:0;max-width:none;display:grid;gap:16px}
+.studio-grid .creator-form h2{font-size:22px;margin:0}
+.studio-grid .creator-form p{margin:0}
+.studio-grid .creator-form input,.studio-grid .creator-form select{width:100%;padding:12px}
+.studio-grid .creator-form button{justify-self:start}
+.studio-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.studio-header h2{margin:0}
+.studio-assets{display:grid;gap:12px;margin:20px 0}
+.studio-asset{display:flex;align-items:flex-start;gap:15px;padding:17px;border:1px solid var(--line);background:#faf9ff;border-radius:14px}
+.studio-asset strong{font-size:13px}
+.studio-asset p{color:var(--muted);font-size:12px;line-height:1.6;overflow-wrap:anywhere;margin:7px 0 0}
+.studio-media-icon{background:#ece6ff;border-radius:12px;display:grid;place-items:center;min-width:44px;height:44px;font-size:24px}
+.studio-action-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:17px}
+.studio-action-row button:disabled{opacity:.5}
+.creator-form-inline{margin:16px 0!important;padding:0!important;border:0!important}
+.creator-form .creator-form-grid select,.creator-form .creator-form-grid textarea{min-width:0;width:100%;border-radius:11px;padding:12px;border:1px solid var(--line);background:#faf9ff;color:var(--ink);font:inherit}
+.creator-preflight>label{display:grid;gap:10px}
+.creator-preflight textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;resize:vertical}
+@media(max-width:780px){.studio-grid{grid-template-columns:1fr}.studio-grid .creator-form{padding:17px}}
