@@ -29,8 +29,8 @@ test("generates reproducible 10,000 distinct punk trait combinations",()=>{
 test("saturated combinations still generate all assets without duplicates",()=>{
   const l:TraitLayer[]=[
     {id:"a",name:"Face",variants:Array.from({length:50},(_,i)=>({id:"a"+i,name:String(i),weight:i===0?1000:1}))},
-    {id:"b",name:"Accessory",variants:Array.from({length:50},(_,i)=>({id:"b"+i,name:String(i),weight:i===0?1000:1}))}
-    ,    {id:"c",name:"Background",variants:Array.from({length:4},(_,i)=>({id:"c"+i,name:String(i),weight:10}))}
+    {id:"b",name:"Accessory",variants:Array.from({length:50},(_,i)=>({id:"b"+i,name:String(i),weight:i===0?1000:1}))},
+    {id:"c",name:"Background",variants:Array.from({length:4},(_,i)=>({id:"c"+i,name:String(i),weight:10}))}
   ];
   const p=generatePlan(l,10000,"all");
   assert.equal(new Set(p.tokens.map(t=>t.picks.join(","))).size,10000);
