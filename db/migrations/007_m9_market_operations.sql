@@ -96,8 +96,7 @@ CREATE TABLE IF NOT EXISTS nft_m9_order_checks (
 -- Server-side per-authenticated-wallet rate limiting; no spoofable IP trust.
 CREATE TABLE IF NOT EXISTS nft_m9_request_buckets (
  chain_id INTEGER NOT NULL DEFAULT 18881 CHECK(chain_id=18881),
- wallet_address TEXT NOT NULL CHECK(wallet_address ~ '^0x[0-9a-f]{40}
-),
+ wallet_address TEXT NOT NULL CHECK(wallet_address ~ '^0x[0-9a-f]{40}$'),
  route TEXT NOT NULL CHECK(route IN('overview','orderbook','notifications','quote')),
  bucket_start TIMESTAMPTZ NOT NULL,
  hits INTEGER NOT NULL DEFAULT 1 CHECK(hits BETWEEN 1 AND 1000),
