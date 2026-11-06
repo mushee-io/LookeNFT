@@ -174,3 +174,15 @@ main { width: 100%; max-width: 1280px; padding: 0 34px 70px; margin: 0 auto; fle
 .creator-preflight>label{display:grid;gap:10px}
 .creator-preflight textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;resize:vertical}
 @media(max-width:780px){.studio-grid{grid-template-columns:1fr}.studio-grid .creator-form{padding:17px}}
+
+/* M7 signed NFT listing and purchase review; privacy-preserving responsive surfaces */
+.creator-page .studio-grid .creator-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.creator-page .studio-grid .creator-form-grid input,.creator-page .studio-grid .creator-form-grid select{width:100%;min-width:0}
+.creator-page .creator-preflight .studio-asset button{margin-top:12px}
+.creator-page .creator-preflight dd{overflow-wrap:anywhere}
+.creator-page .creator-preflight .creator-ack{display:flex;gap:10px}
+@media(max-width:760px){
+  .creator-page .studio-grid{grid-template-columns:1fr}
+  .creator-page .studio-grid .creator-form-grid{grid-template-columns:1fr}
+  .creator-page .studio-grid .creator-form-grid .creator-wide{grid-column:auto}
+}

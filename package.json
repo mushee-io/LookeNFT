@@ -1,6 +1,6 @@
 {
   "name": "lookenft",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -22,7 +22,10 @@
     "test:m5": "hardhat test contract-tests/LookeMintPhases.test.js contract-tests/LookeMintPhases.fuzz.test.js",
     "mint:verify": "tsx scripts/m5-verify-mint.ts",
     "mint:check": "npm run typecheck && npm run contracts:compile && npm run contracts:analyze && npm run contracts:test",
-    "test:media": "node --import tsx --test tests/m6.test.ts tests/m6.integration.test.ts"
+    "test:media": "node --import tsx --test tests/m6.test.ts tests/m6.integration.test.ts",
+    "test:market": "node --import tsx --test tests/m7.test.ts tests/m7.integration.test.ts",
+    "market:verify": "tsx scripts/m7-verify-sale.ts",
+    "market:contracts": "hardhat test contract-tests/LookeFixedPriceMarket.test.js contract-tests/LookeFixedPriceMarket.fuzz.test.js"
   },
   "dependencies": {
     "next": "16.4.5",

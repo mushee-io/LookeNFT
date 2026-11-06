@@ -148,3 +148,29 @@ All external integrations default to disabled, and M1–M5 PRs remain unmerged
 drafts. Cancun MCOPY compatibility and independent Testnet/Blockscout evidence
 remain NO-GO. See `docs/M6_ACCEPTANCE.md` for exact acceptance gates and
 operational instructions. **No chain deployment, minting or UOS payments.**
+
+
+## M7 — Fixed-price ERC721/1155 listing groundwork (Ultra EVM Testnet)
+
+M7 adds an EIP-712 signed, no-escrow fixed-price settlement contract
+`contracts/LookeFixedPriceMarket.sol`, using immutable 200 bps fee, ERC-2981
+royalties, per-seller nonce cancellation, expiry and reserved-buyer restrictions,
+live ownership and approved NFT transfer checks. Successful sales atomically
+transfer the NFT seller→buyer and UOS buyer→seller/fee/royalty; any failed
+transfer/payout reverts the entire transaction. No live settlement executed.
+
+- `/market` previews signed offers, read-only on-chain quote, signature
+  registration, buyer payment/royalty review and explicitly wallet-approved
+  purchase/cancellation paths, **all trading/signatures OFF by default**.
+- `/api/market/listings` saves **genuine seller EOA typed signatures only**
+  after a verified M3 collection, ownership and actual transfer approval.
+- `db/migrations/005_m7_fixed_price_listings.sql` stores unverified signed
+  order candidates and independently corroborated sale receipts, never
+  invented listings or order volume.
+- `npm run market:verify` is operator-only read-only RPC+Blockscout settlement
+  reconciliation and cannot sign/broadcast. It fails if Blockscout HTTP 404
+  persists, or if either provider disagrees.
+
+No marketplace address, operator/security authorisation, or real wallet-signed
+listing has been supplied. M1–M6 remain draft and release NO-GO. See
+`docs/M7_ACCEPTANCE.md` for evidence gates and precise integration blockers.
