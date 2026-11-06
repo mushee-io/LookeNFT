@@ -3,17 +3,15 @@ pragma solidity ^0.8.24;
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {LookeMintPhases} from "./LookeMintPhases.sol";
 
 /**
  * @title Looke1155Collection
  * @notice Creator-owned, non-upgradeable ERC-1155 contract with *lifetime*
  *         global and per-token caps. Burning never restores mint allowance.
- * @dev M4 only: reserved mints; public paid/allowlist rules are an M5 gate.
+ * @dev M5: reserve and public/allowlist mints share lifetime caps.
  */
-contract Looke1155Collection is ERC1155, ERC2981, Ownable, Pausable, ReentrancyGuard {
+contract Looke1155Collection is ERC1155, ERC2981, LookeMintPhases {
     error InvalidCollectionConfiguration();
     error SupplyCapExceeded();
     error MetadataIsFrozen();
@@ -39,7 +37,7 @@ contract Looke1155Collection is ERC1155, ERC2981, Ownable, Pausable, ReentrancyG
         address creator_,
         address royaltyReceiver_,
         uint96 royaltyBps_
-    ) ERC1155(uriTemplate_) Ownable(creator_) {
+    ) ERC1155(uriTemplate_) LookeMintPhases(creator_) {
         if (
             bytes(uriTemplate_).length == 0 || bytes(uriTemplate_).length > 512 ||
             totalCap_ == 0 || totalCap_ > SUPPLY_HARD_LIMIT ||
@@ -86,6 +84,18 @@ contract Looke1155Collection is ERC1155, ERC2981, Ownable, Pausable, ReentrancyG
         mintedById[tokenId] += quantity; // before ERC1155 receiver callback
         _mint(recipient, tokenId, quantity, "");
         emit ReservedMint(recipient, tokenId, quantity);
+    }
+
+    /// @dev M5 phase mint: global cap AND per token ID lifetime cap.
+    function _mintPhaseTokens(address minter, uint256 tokenId, uint256 quantity)
+        internal override
+    {
+        if (quantity > maxTotalMinted - totalMinted ||
+            quantity > maxMintedPerId - mintedById[tokenId])
+            revert SupplyCapExceeded();
+        totalMinted += quantity;
+        mintedById[tokenId] += quantity;
+        _mint(minter, tokenId, quantity, "");
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC1155, ERC2981) returns (bool) {

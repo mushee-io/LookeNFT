@@ -4,14 +4,14 @@ const { keccak256, toUtf8Bytes } = require("ethers");
 const fs = require("node:fs");
 const path = require("node:path");
 const { version } = require("solc");
-const names = ["LookeCollectionFactory", "Looke721Collection", "Looke1155Collection"];
+const names = ["LookeCollectionFactory", "Looke721Deployer", "Looke1155Deployer", "Looke721Collection", "Looke1155Collection"];
 const result = {
-  schema:"lookenft/m4-compiler-artifacts/v1",
+  schema:"lookenft/m5-compiler-artifacts/v2",
   environment:"local-ci-only",
   chainIdTarget:18881,
   compiler:"solc-js "+version(),
   openzeppelinContracts:"5.6.1",
-  optimization:{viaIR:true,optimizerRuns:200,evmVersion:"cancun"},
+  optimization:{viaIR:true,optimizerRuns:1,evmVersion:"cancun"},
   creationBytecodeOnly:true,
   deployedOnTestnet:false,
   securityReview:"not independently audited",
@@ -31,5 +31,5 @@ for(const name of names){
   });
 }
 fs.mkdirSync(path.join(".artifacts"),{recursive:true});
-fs.writeFileSync(path.join(".artifacts","m4-compiled-bytecode.json"),JSON.stringify(result,null,2)+"\n");
+fs.writeFileSync(path.join(".artifacts","m5-compiled-bytecode.json"),JSON.stringify(result,null,2)+"\n");
 console.log(JSON.stringify(result,null,2));

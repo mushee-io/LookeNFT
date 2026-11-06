@@ -90,3 +90,34 @@ A source-code verification and independent security review remain separate.
 
 M1/M2/M3 still have unmerged draft PRs and inherited real-wallet/identity/
 data/explorer blockers. **No mainnet, NFT purchase, fee or public beta launch.**
+
+
+## M5 — Wallet-approved public and allowlist minting (engineering only)
+
+M5 adds an ERC-721/1155 phase-mint module and factory **VERSION 2**. A creator
+must separately schedule each immutable public/allowlist phase. Per-phase and
+lifetime wallet limits, lifetime token supplies, optional Merkle allocations,
+expiry, on-chain caller nonce, UOS payment/refund accounting, reentrancy protection
+and creator-only proceeds withdrawals are enforced by the smart contracts.
+
+`/mint` offers a read-only phase quote and simulation and, **only if a
+human-approved Testnet operator has enabled both release flags**, explicit
+wallet-confirmed mint submission with receipt and ownership checks. By default
+`NEXT_PUBLIC_M5_ENABLE_MINTING=false`, `NEXT_PUBLIC_M4_CANCUN_VERIFIED=false`
+and no factory address is provisioned. **No financial transactions are enabled.**
+
+CI tests include local Hardhat Cancun mint/merkle/payment/callback property
+tests, real ephemeral PostgreSQL receipt constraints, and TypeScript/Next build.
+Local tests are not real Ultra EVM Testnet activity.
+
+To independently document **a future real authorised mint** (no broadcast),
+apply migration `003_m5_mint_receipts.sql` and run
+`npm run mint:verify` with actual `M5_FACTORY_ADDRESS`,
+`M5_COLLECTION_ADDRESS`, `M5_CREATION_MINT_TX_HASH` and
+`M5_INDEPENDENT_RPC_URL`. Two RPC providers, the official Blockscout
+explorer and the M3 approved registry must agree or verification fails.
+The script never uses keys or signs transactions.
+
+See `docs/M5_ACCEPTANCE.md`. M1–M4 still have outstanding real-wallet,
+operator database, independent explorer, Cancun compatibility and audit gates.
+**No M5 deployment, mint, payment or mainnet release has been carried out.**

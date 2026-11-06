@@ -3,21 +3,16 @@ pragma solidity ^0.8.24;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {LookeMintPhases} from "./LookeMintPhases.sol";
 
 /**
  * @title Looke721Collection
  * @notice Non-upgradeable creator-owned ERC-721 collection for Ultra EVM Testnet.
- * @dev M4 only: reserve-mint is owner-only; public/paid mint policy belongs to M5.
+ * @dev M5: public/allowlist phases are inactive until creator explicitly schedules one.
  *      Pausing intentionally suspends minting, not standard owner transfers.
  *      Royalties are immutable ERC-2981 signalling, not marketplace enforcement.
  */
-contract Looke721Collection is ERC721, ERC2981, Ownable, Pausable, ReentrancyGuard {
-    using Strings for uint256;
-
+contract Looke721Collection is ERC721, ERC2981, LookeMintPhases {
     error InvalidCollectionConfiguration();
     error SupplyCapExceeded();
     error MetadataIsFrozen();
@@ -43,7 +38,7 @@ contract Looke721Collection is ERC721, ERC2981, Ownable, Pausable, ReentrancyGua
         address creator_,
         address royaltyReceiver_,
         uint96 royaltyBps_
-    ) ERC721(name_, symbol_) Ownable(creator_) {
+    ) ERC721(name_, symbol_) LookeMintPhases(creator_) {
         if (
             bytes(name_).length == 0 || bytes(name_).length > 80 ||
             bytes(symbol_).length == 0 || bytes(symbol_).length > 15 ||
@@ -89,6 +84,19 @@ contract Looke721Collection is ERC721, ERC2981, Ownable, Pausable, ReentrancyGua
         totalMinted = tokenId; // set before the ERC721 receiver callback
         _safeMint(recipient, tokenId);
         emit ReservedMint(recipient, tokenId);
+    }
+
+    /// @dev M5 phase mint: mint sequential IDs, preserving lifetime supply.
+    function _mintPhaseTokens(address minter, uint256 tokenId, uint256 quantity)
+        internal override
+    {
+        if (tokenId != 0 || quantity == 0 || quantity > 20)
+            revert InvalidMintQuantity();
+        if (quantity > maxSupply - totalMinted) revert SupplyCapExceeded();
+        for (uint256 i = 0; i < quantity; ++i) {
+            uint256 nextId = ++totalMinted;
+            _safeMint(minter, nextId);
+        }
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
