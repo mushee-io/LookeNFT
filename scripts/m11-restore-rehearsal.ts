@@ -32,7 +32,8 @@ const details=async(pool:Pool)=>{
   "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename");
  const data:Record<string,string>={};
  for(const row of tables.rows){
-  if(!/^nft_[a-z0-9_]+$/.test(row.tablename))throw Error("Unexpected non-NFT restored table: "+row.tablename);
+  if(!/^nft_[a-z0-9_]+$/.test(row.tablename) && row.tablename!=="looke_curated_collections")
+   throw Error("Unexpected non-NFT restored table: "+row.tablename);
   const found=await pool.query("SELECT count(*)::text AS n FROM public."+row.tablename);
   data[row.tablename]=found.rows[0].n;
  }
