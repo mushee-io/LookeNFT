@@ -161,7 +161,9 @@ export default function CreatePage() {
     } finally { setBusy(false); }
   }
 
-  const gateMessage = !M4_CANCUN_VERIFIED\n    ? "Cancun MCOPY/PUSH0 compatibility is not independently confirmed by the operator."\n    : !M4_DEPLOY_ENABLED
+  const gateMessage = !M4_CANCUN_VERIFIED
+    ? "Cancun MCOPY/PUSH0 compatibility is not independently confirmed by the operator."
+    : !M4_DEPLOY_ENABLED
     ? "Deployment is disabled by the M4 operator gate."
     : !isAddress(M4_FACTORY_ADDRESS, { strict: false })
       ? "The authorised Testnet factory address is not configured."

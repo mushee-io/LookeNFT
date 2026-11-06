@@ -315,7 +315,9 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
    * A factory deployment itself remains a separate human-authorised operation.
    */
   async function submitFactoryDeployment(factoryAddress: string, calldata: Hex): Promise<Hex> {
-    if (process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED !== "true")\n      throw new Error("Ultra EVM Testnet Cancun opcode compatibility is not operator-verified");\n    if (process.env.NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT !== "true")
+    if (process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED !== "true")
+      throw new Error("Ultra EVM Testnet Cancun opcode compatibility is not operator-verified");
+    if (process.env.NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT !== "true")
       throw new Error("M4 Testnet deployment gate is closed");
     if (ACTIVE_NETWORK.chainId !== 18881)
       throw new Error("M4 deployment is restricted to Ultra EVM Testnet");
