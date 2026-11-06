@@ -75,7 +75,8 @@ describe("M7 fixed-price EIP712 marketplace — LOCAL Hardhat only; no real Test
   await reverts(()=>market.connect(buyer).buy(o,crossChainSignature,{value:UOS}),"InvalidSignature");
   const otherMarket=await marketDeploy(feeWallet.address);
   await reverts(()=>otherMarket.connect(buyer).buy(o,signature,{value:UOS}),"InvalidSignature");
-  await reverts(()=>market.connect(buyer).buy(o,await sign(market,outsider,o),{value:UOS}),"InvalidSignature");
+  const outsiderSignature=await sign(market,outsider,o);
+  await reverts(()=>market.connect(buyer).buy(o,outsiderSignature,{value:UOS}),"InvalidSignature");
   await reverts(()=>market.connect(buyer).buy({...o,deadline:1n},signature,{value:UOS}),"ListingExpired");
  });
  it("seller cancellation and floor are wallet-scoped and monotonic",async()=>{
@@ -115,11 +116,14 @@ describe("M7 fixed-price EIP712 marketplace — LOCAL Hardhat only; no real Test
  it("reverts if fee/royalty exceeds seller's signed limits or minimum proceeds",async()=>{
   await(await c.connect(seller).approve(await market.getAddress(),1n)).wait();
   const a=await order(market,c,seller,{maxFeeBps:100});
-  await reverts(()=>market.connect(buyer).buy(a,await sign(market,seller,a),{value:UOS}),"InvalidListing");
+  const feeSignature=await sign(market,seller,a);
+  await reverts(()=>market.connect(buyer).buy(a,feeSignature,{value:UOS}),"InvalidListing");
   const b=await order(market,c,seller,{maxRoyaltyBps:100});
-  await reverts(()=>market.connect(buyer).buy(b,await sign(market,seller,b),{value:UOS}),"RoyaltyExceedsBound");
+  const royaltySignature=await sign(market,seller,b);
+  await reverts(()=>market.connect(buyer).buy(b,royaltySignature,{value:UOS}),"RoyaltyExceedsBound");
   const x=await order(market,c,seller,{minSellerProceedsWei:ethers.parseEther("0.94")});
-  await reverts(()=>market.connect(buyer).buy(x,await sign(market,seller,x),{value:UOS}),"SellerProceedsTooLow");
+  const proceedsSignature=await sign(market,seller,x);
+  await reverts(()=>market.connect(buyer).buy(x,proceedsSignature,{value:UOS}),"SellerProceedsTooLow");
  });
  it("ERC1155 performs full-order amount transfer and cannot replay nonce",async()=>{
   const result=await create1155(factory,seller,{totalCap:30n,perIdCap:20n,receiver:royaltyWallet.address,bps:500});
@@ -142,7 +146,8 @@ describe("M7 fixed-price EIP712 marketplace — LOCAL Hardhat only; no real Test
   await(await fresh.c.connect(seller).mintReserved(seller.address)).wait();
   await(await fresh.c.connect(seller).approve(await market.getAddress(),1n)).wait();
   const o=await order(market,fresh.c,seller);
-  await reverts(()=>market.connect(buyer).buy(o,await sign(market,seller,o),{value:UOS}),"TransferFailed");
+  const refundFailureSignature=await sign(market,seller,o);
+  await reverts(()=>market.connect(buyer).buy(o,refundFailureSignature,{value:UOS}),"TransferFailed");
   assert.equal(await fresh.c.ownerOf(1n),seller.address);
   assert.equal(await market.invalidNonces(seller.address,o.nonce),false);
   assert.equal(await ethers.provider.getBalance(await market.getAddress()),0n);
