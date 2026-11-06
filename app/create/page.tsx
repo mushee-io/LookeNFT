@@ -103,17 +103,16 @@ export default function CreateCollectionPage(){
    ]);
    if(chainId!==18881||version!==3n||factoryOwner.toLowerCase()!==owner.toLowerCase())
     throw Error("Configured factory is not the approved V3 contract controlled by this operator wallet.");
-   const input=validated.standard==="erc721"?
-    {functionName:"createERC721" as const,args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt] as const}:
-    {functionName:"createERC1155" as const,args:[validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt] as const};
    const expected=validated.standard==="erc721"
     ? await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC721",
       args:[owner,validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
     : await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC1155",
       args:[owner,validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
-   const calldata=validated.standard==="erc721"?
-      encodeFunctionData({abi:factoryAbi,functionName:"createERC721",args:input.args as [string,string,string,bigint,Address,bigint,Hex]}):
-      encodeFunctionData({abi:factoryAbi,functionName:"createERC1155",args:input.args as [string,bigint,bigint,Address,bigint,Hex]});
+   const calldata=validated.standard==="erc721"
+    ? encodeFunctionData({abi:factoryAbi,functionName:"createERC721",
+      args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
+    : encodeFunctionData({abi:factoryAbi,functionName:"createERC1155",
+      args:[validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
    const tx=await wallet.submitFactoryDeployment(factory,calldata);
    setTxHash(tx);setNotice("Transaction submitted. Waiting for Ultra Testnet confirmation; collection is NOT yet published.");
    const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
