@@ -222,22 +222,28 @@ export default function CreateCollectionPage(){
      <button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(design?.metadata,null,2));}}>Copy example metadata JSON</button>
     </div>
     <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
-   <div className="creator-publish-panel">
+   {authorised===true?<div className="creator-publish-panel">
     <h2>Deploy to Ultra Testnet</h2>
     <p>Only your authorised wallet can approve a transaction from the owner-only V3 factory. NFT creation on Ultra is a separate blockchain transaction, not the same as publishing a catalogue card.</p>
     <button type="button" disabled={busy||!deployAllowed||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
     {!deployAllowed&&<p className="operator-note">On-chain deployment is currently locked until the V3 factory is deployed and verified and the independent M4 security gates are enabled. The editor and preview remain available.</p>}
     {txHash&&<p className="creator-break">Transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a></p>}
     {confirmedAddress&&<p className="creator-break">Verified collection address: <strong>{confirmedAddress}</strong></p>}
-   </div>
-   <div className="creator-publish-panel">
+   </div>:<div className="creator-publish-panel">
+    <h2>Publishing requires the LookeNFT admin wallet</h2>
+    <p>Your 10,000-edition artwork and metadata preview are ready locally. Publishing a collection needs your complete authorized wallet address, a verified Ultra contract and hosted metadata.</p>
+    {wallet.address&&<button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(wallet.address||"");}}>Copy my full connected wallet address</button>}
+    <p><button type="button" disabled>Publish to Ultra (operator access required)</button></p>
+    <p className="operator-note">This test preview does not broadcast a transaction, mint NFTs, or publish anything to mainnet.</p>
+   </div>}
+   {authorised===true&&<div className="creator-publish-panel">
     <h2>Publish official preview to the market</h2>
     <p>After deployment and 12 Testnet confirmations, this tool verifies your factory event and indexer record before publishing the collection preview to the gallery. Already registered collections can also be entered below. Minting stays disabled.</p>
     <label>Verified collection contract address<input value={confirmedAddress||manualAddress} onChange={e=>{setManualAddress(e.target.value);setPublished(false);}} placeholder="0x…"/></label>
     <button type="button" disabled={busy||published||!(confirmedAddress||manualAddress)} onClick={()=>void publishCollection()}>{published?"Published ✓":busy?"Publishing…":"Publish to LookeNFT market"}</button>
     {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent((confirmedAddress||manualAddress).trim())}>Open public collection preview ↗</Link></p>}
     <p className="operator-note">Minting remains closed until a valid priced phase is scheduled on-chain and M5/M12 financial execution has been independently approved. The price above is not a live on-chain quote.</p>
-   </div>
+   </div>}
   </>}
   {notice&&<p role="status" className="operator-note">{notice}</p>}
   {error&&<p role="alert" className="operator-error">{error}</p>}
