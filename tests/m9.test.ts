@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {Interface} from "ethers";
 import {decodeMarketLog,equalWitnessLogs,hasAncestorContinuity,weiSplit,
  rawLogFingerprint,marketReadOnly,validateMarketAddresses,type RawMarketLog} from "../lib/m9/market";
-import type {Hex} from "viem";
+import type {Address,Hex} from "viem";
 const listing="0x000000000000000000000000000000000000cafe" as const;
 const vault="0x000000000000000000000000000000000000beef" as const;
 const seller="0x0000000000000000000000000000000000000abc" as const;
@@ -12,7 +12,7 @@ const nft="0x0000000000000000000000000000000000000abc" as const;
 const digest=("0x"+"2".repeat(64)) as Hex;
 const blockHash=("0x"+"3".repeat(64)) as Hex;
 const txHash=("0x"+"4".repeat(64)) as Hex;
-function makeEvent(abi:string,name:string,args:unknown[],from=listing):RawMarketLog{
+function makeEvent(abi:string,name:string,args:unknown[],from:Address=listing):RawMarketLog{
  const encoded=new Interface([abi]).encodeEventLog(name,args);
  return {address:from,blockNumber:120n,blockHash,transactionHash:txHash,
   logIndex:0,data:encoded.data as Hex,topics:encoded.topics as Hex[]};

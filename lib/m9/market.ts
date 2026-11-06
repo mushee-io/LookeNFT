@@ -1,6 +1,15 @@
-import {decodeEventLog,isAddress,type Address,type Hex} from "viem";
-import {marketAbi} from "../m7/market";
-import {offerAbi} from "../m8/offers";
+import {decodeEventLog,isAddress,parseAbi,type Address,type Hex} from "viem";
+
+const witnessedMarketEvents=parseAbi([
+ "event ListingFilled(bytes32 indexed orderHash,address indexed seller,address indexed buyer,address collection,uint256 tokenId,uint256 quantity,uint256 priceWei,uint256 feeWei,address royaltyRecipient,uint256 royaltyWei,uint256 sellerProceedsWei,uint256 nonce,uint8 standard)",
+ "event NonceCancelled(address indexed seller,uint256 indexed nonce)",
+ "event MinimumNonceIncreased(address indexed seller,uint256 previous,uint256 current)",
+ "event OfferFunded(bytes32 indexed offerHash,address indexed buyer,address indexed collection,uint256 tokenId,uint256 quantity,uint256 totalPriceWei,uint256 nonce,uint256 deadline)",
+ "event OfferAccepted(bytes32 indexed offerHash,address indexed buyer,address indexed seller,address collection,uint256 tokenId,uint256 quantity,uint256 totalPriceWei,uint256 feeWei,address royaltyRecipient,uint256 royaltyWei,uint256 sellerProceedsWei,uint256 nonce,uint8 standard)",
+ "event OfferRefunded(bytes32 indexed offerHash,address indexed buyer,address indexed recipient,uint256 amountWei,uint256 nonce)",
+ "event OfferNonceCancelled(address indexed buyer,uint256 indexed nonce)",
+ "event MinimumOfferNonceIncreased(address indexed buyer,uint256 previous,uint256 current)",
+]);
 
 export const M9_CHAIN_ID=18881 as const;
 export const M9_MIN_CONFIRMATIONS=12;
@@ -55,7 +64,7 @@ export function decodeMarketLog(log:RawMarketLog,listing:Address,vault:Address):
  if(!source)return null;
  let parsed;
  try{
-  parsed=decodeEventLog({abi:source==="m7"?marketAbi:offerAbi,
+  parsed=decodeEventLog({abi:witnessedMarketEvents,
     data:log.data,topics:log.topics as [Hex,...Hex[]],strict:true});
  }catch{return null;}
  const a=parsed.args as unknown as Record<string,unknown>;
