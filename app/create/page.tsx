@@ -135,6 +135,12 @@ export default function CreateCollectionPage(){
    inspect(form,wallet.address,salt);
    const address=(confirmedAddress||manualAddress).trim();
    if(!isAddress(address,{strict:false}))throw Error("Deploy a collection or enter an already verified collection contract address first.");
+   if(txHash&&confirmedAddress&&address.toLowerCase()===confirmedAddress.toLowerCase()){
+    await readAdmin(await fetch("/api/admin/collections/register",{
+     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+     body:JSON.stringify({address,txHash,standard:form.standard})
+    }));
+   }
    await readAdmin(await fetch("/api/admin/collections",{
     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({address,title:form.name.trim(),description:form.description.trim(),
@@ -202,7 +208,7 @@ export default function CreateCollectionPage(){
    </div>
    <div className="creator-publish-panel">
     <h2>Publish official preview to the market</h2>
-    <p>After deployment, the collection must pass indexer registration, owner and V3 factory verification. Publishing makes its preview visible on the homepage gallery; it does not turn on minting.</p>
+    <p>After deployment and 12 Testnet confirmations, this tool verifies your factory event and indexer record before publishing the collection preview to the gallery. Already registered collections can also be entered below. Minting stays disabled.</p>
     <label>Verified collection contract address<input value={confirmedAddress||manualAddress} onChange={e=>{setManualAddress(e.target.value);setPublished(false);}} placeholder="0x…"/></label>
     <button type="button" disabled={busy||published||!(confirmedAddress||manualAddress)} onClick={()=>void publishCollection()}>{published?"Published ✓":busy?"Publishing…":"Publish to LookeNFT market"}</button>
     {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent((confirmedAddress||manualAddress).trim())}>Open public collection preview ↗</Link></p>}
