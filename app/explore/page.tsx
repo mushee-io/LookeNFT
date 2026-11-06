@@ -1,78 +1,40 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-type Collection = {
-  address: string; standard: string; deploymentBlock: string; observedTokenCount: string;
-  observedTransferItems: string; sourceVerified: boolean; lastObservedBlock: string | null;
-};
-type Coverage = { active: boolean; startBlock: string | null; lastBlock: string | null; blockHash: string | null };
-type Response = { chainId: number; collections: Collection[]; coverage: Coverage; error?: string };
-
-export default function ExplorePage() {
-  const [data, setData] = useState<Response | null>(null);
-  const [query, setQuery] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-    fetch("/api/nfts/collections?q=" + encodeURIComponent(query), { signal: controller.signal, cache: "no-store" })
-      .then(async (res) => {
-        const json = await res.json() as Response;
-        if (!res.ok) throw new Error(json.error || "Indexer service unavailable");
-        return json;
-      })
-      .then((json) => { if (!controller.signal.aborted) setData(json); })
-      .catch((e: unknown) => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Failed to read index"); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [query]);
-
-  return (
-    <section className="interior">
-      <p className="eyebrow">MARKETPLACE / ULTRA EVM TESTNET</p>
-      <h1>Discover on-chain collections.</h1>
-      <p className="interior-copy">Only operator-registered contracts that pass Testnet bytecode and ERC-165 checks appear here. Listing does not imply a source-code audit or endorsement.</p>
-      <label className="collection-search-label" htmlFor="collection-search">Search by contract address</label>
-      <input id="collection-search" className="collection-search" placeholder="0x…"
-        maxLength={42} value={query} onChange={(e) => setQuery(e.target.value)} />
-      {loading ? <p role="status">Reading canonical index…</p> : error ?
-        <div role="alert" className="index-warning">Indexer unavailable: {error}. No invented collections are displayed.</div> :
-        <>
-          <div className="index-warning" role="status">
-            {data?.coverage.active
-              ? "Indexed through Ultra EVM Testnet block " + data.coverage.lastBlock + ". Results are limited to the approved registry and configured historical start block."
-              : "No verified indexing coverage yet. The absence of listings does not prove there are no Ultra EVM NFTs."}
-          </div>
-          {data?.collections.length ? (
-            <div className="collection-grid">
-              {data.collections.map((item) => (
-                <article className="collection-card" key={item.address}>
-                  <span className="collection-standard">{item.standard.toUpperCase()} · Testnet</span>
-                  <h2>{item.address.slice(0, 10)}…{item.address.slice(-8)}</h2>
-                  <p>Contract bytecode and interface checked. {item.sourceVerified ? "Source marked verified by operator." : "Source verification not evidenced."}</p>
-                  <dl>
-                    <div><dt>Observed tokens</dt><dd>{item.observedTokenCount}</dd></div>
-                    <div><dt>Transfer items</dt><dd>{item.observedTransferItems}</dd></div>
-                    <div><dt>First indexed from</dt><dd>Block {item.deploymentBlock}</dd></div>
-                  </dl>
-                  <div className="collection-links">
-                    <Link href={"/collection/" + item.address}>View tokens</Link>
-                    <a href={"https://evmexplorer.testnet.ultra.io/address/" + item.address}
-                      rel="noopener noreferrer" target="_blank">Explorer ↗</a>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : <div className="empty-state interior-empty">
-            <div className="empty-icon">◇</div>
-            <h2>No registered, indexed collections to show.</h2>
-            <p>Collection registration and Testnet event indexing require real operator-selected contracts. No sample token inventory, floor prices or synthetic volume is inserted.</p>
-          </div>}
-        </>}
-    </section>
-  );
+type Drop={address:string;standard:"erc721"|"erc1155";title:string;description:string;coverUrl:string|null;status:"draft"|"published";mintAvailable:boolean;publishedAt:string|null};
+type Result={collections?:Drop[];error?:string};
+export default function ExplorePage(){
+  const [collections,setCollections]=useState<Drop[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState<string|null>(null);
+  const [search,setSearch]=useState("");
+  useEffect(()=>{
+    const ctl=new AbortController();
+    fetch("/api/curated",{signal:ctl.signal,cache:"no-store"})
+      .then(async r=>{const data=await r.json() as Result;if(!r.ok)throw new Error(data.error||"Curated catalogue unavailable");return data;})
+      .then(data=>{if(!ctl.signal.aborted)setCollections(data.collections||[]);})
+      .catch(e=>{if(!ctl.signal.aborted)setError(e instanceof Error?e.message:"Unable to load collections");})
+      .finally(()=>{if(!ctl.signal.aborted)setLoading(false);});
+    return ()=>ctl.abort();
+  },[]);
+  const shown=useMemo(()=>collections.filter(x=>x.title.toLowerCase().includes(search.toLowerCase())),[collections,search]);
+  return <section className="curated-page">
+    <div className="curated-hero">
+      <p className="curated-chip">NFT MARKETPLACE · ULTRA EVM TESTNET</p>
+      <h1>Discover <span>LookeNFT</span> collections.</h1>
+      <p>Only official, operator-published NFT drops appear here. Open a collection to preview its details, and mint when the drop is enabled.</p>
+    </div>
+    <div className="curated-heading"><div><p className="curated-overline">OFFICIAL COLLECTIONS</p><h2>Explore drops</h2></div><span className="curated-count">{loading?"Loading":collections.length+" published"}</span></div>
+    {collections.length>0&&<label className="curated-search-label">Search collections<input aria-label="Search official NFT collections" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by collection name" /></label>}
+    {loading?<div className="curated-empty" role="status">Loading official drops…</div>
+      :error?<div className="curated-empty" role="alert">Unable to verify published collections right now. {error}</div>
+      :shown.length?<div className="curated-grid">{shown.map(drop=><Link href={"/collection/"+drop.address} className="curated-card" key={drop.address}>
+        <div className="curated-cover">{drop.coverUrl?<img src={drop.coverUrl} alt={drop.title+" collection cover"} />:<div className="curated-no-cover" aria-label="Collection cover not provided"><span>◇</span><small>Official drop</small></div>}</div>
+        <div className="curated-card-body"><div className="curated-card-title"><h3>{drop.title}</h3><span className="curated-verified" aria-label="Published by operator">✓</span></div>
+        <p>{drop.description||"Official LookeNFT collection on Ultra EVM."}</p>
+        <div className="curated-card-bottom"><span>{drop.standard.toUpperCase()} · Testnet</span><strong>{drop.mintAvailable?"Mint open":"Preview"}</strong></div></div>
+      </Link>)}</div>:
+      <div className="curated-empty"><div className="curated-empty-icon">◇</div><h3>{search?"No matching drops":"No public NFT drops yet"}</h3><p>{search?"Try another collection name.":"The LookeNFT operator will publish collections here when their on-chain verification and preview are ready. No placeholder collections are shown."}</p></div>}
+  </section>;
 }
