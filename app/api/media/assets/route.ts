@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { getDb, inTransaction } from "@/lib/server/db";
-import { requireSession } from "@/lib/server/auth";
+import { requireOperator } from "@/lib/server/curation";
 import { ApiError, apiFailure, noStore } from "@/lib/server/http";
 import {
   mediaOperationEnabled, cloudinaryReady, scanServiceReady,
@@ -14,7 +14,7 @@ export const dynamic="force-dynamic";
 
 export async function GET(request:NextRequest){
   try {
-    const session=await requireSession(request);
+    const session={ wallet: await requireOperator(request) };
     const db=getDb();
     const r=await db.query(
       `SELECT id::text,media_kind,mime_type,byte_length,sha256,state,
@@ -31,7 +31,7 @@ export async function GET(request:NextRequest){
 export async function POST(request:NextRequest){
   let id:string|null=null;
   try {
-    const session=await requireSession(request);
+    const session={ wallet: await requireOperator(request) };
     if(!mediaOperationEnabled()||!cloudinaryReady()||!scanServiceReady())
       throw new ApiError(503,"M6 upload disabled until operator-backed Cloudinary and malware scanner are configured");
     guardMultipart(request);
