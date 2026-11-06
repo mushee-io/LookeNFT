@@ -55,3 +55,38 @@ and API outputs remain read-only; neither source-code verification nor complete
 wallet coverage is implied.
 
 See `docs/M3_ACCEPTANCE.md` for checks and outstanding operator evidence.
+
+
+## M4 — Collection factory and creator studio (stacked draft, not deployed)
+
+M4 implements Ultra EVM **Testnet-only** ERC-721/1155 collection contracts and
+a deterministic CREATE2 factory, using pinned OpenZeppelin Contracts 5.6.1,
+solc-js 0.8.30 and Hardhat local VM. Creator ownership, reserve mint supply
+caps, ERC-2981 royalty signalling, metadata controls, pause/freeze and
+on-chain event evidence are covered by local tests. Upstream audited libraries
+do **not** make our custom contracts independently audited.
+
+- `npm run contracts:compile`
+- `npm run contracts:analyze` (local compilation hashes and runtime sizes)
+- `npm run contracts:test` (local hardhat unit/adversarial/property tests)
+- `npm run check` (application + PostgreSQL regression)
+
+`/create` provides a real editable collection configuration form with
+metadata and royalty checks, deterministic address preflight against a
+configured factory, and explicit wallet approval when enabled.
+
+**No deployments have been authorised.** The default
+`NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT=false` blocks all transaction submission
+and `NEXT_PUBLIC_M4_FACTORY_ADDRESS` starts empty. No private keys, seed
+phrases or remote deploy scripts are included. To enable future human-authorised
+Testnet deployment, the operator must first deploy/verify the factory with
+their own wallet, configure the factory address and review the release gates
+documented in `docs/M4_ACCEPTANCE.md`.
+
+After a real wallet-approved collection transaction, the read-only
+`scripts/m4-verify-deployment.ts` requires independent Testnet RPC and
+Blockscout explorer evidence before producing a verified on-chain manifest.
+A source-code verification and independent security review remain separate.
+
+M1/M2/M3 still have unmerged draft PRs and inherited real-wallet/identity/
+data/explorer blockers. **No mainnet, NFT purchase, fee or public beta launch.**
