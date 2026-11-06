@@ -6,7 +6,7 @@ const path = require("node:path");
 const { version } = require("solc");
 const names = ["LookeCollectionFactory", "Looke721Collection", "Looke1155Collection"];
 const result = {
-  schema:"lookenft/m4-compiler-artifacts/v1",
+  schema:"lookenft/m5-compiler-artifacts/v2",
   environment:"local-ci-only",
   chainIdTarget:18881,
   compiler:"solc-js "+version(),
@@ -31,5 +31,5 @@ for(const name of names){
   });
 }
 fs.mkdirSync(path.join(".artifacts"),{recursive:true});
-fs.writeFileSync(path.join(".artifacts","m4-compiled-bytecode.json"),JSON.stringify(result,null,2)+"\n");
+fs.writeFileSync(path.join(".artifacts","m5-compiled-bytecode.json"),JSON.stringify(result,null,2)+"\n");
 console.log(JSON.stringify(result,null,2));

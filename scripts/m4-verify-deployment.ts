@@ -67,7 +67,7 @@ async function verify() {
     primary.readContract({address,abi:factoryAbi,functionName:"ULTRA_TESTNET_CHAIN_ID"}),
     primary.readContract({address,abi:factoryAbi,functionName:"VERSION"})
   ]);
-  if (chain !== 18881n || version !== 1n) throw Error("Factory version/chain guard invalid");
+  if (chain !== 18881n || version !== 2n) throw Error("Factory version/chain guard invalid");
   const events = parseEventLogs({abi:factoryAbi,logs:receipt.logs,eventName:"CollectionCreated"});
   if (events.length !== 1 || events[0].address.toLowerCase() !== address ||
       events[0].args.creator.toLowerCase() !== tx.from.toLowerCase())

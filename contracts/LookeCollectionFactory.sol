@@ -18,7 +18,7 @@ contract LookeCollectionFactory is ReentrancyGuard {
     error SaltAlreadyConsumed();
 
     uint256 public constant ULTRA_TESTNET_CHAIN_ID = 18881;
-    uint256 public constant VERSION = 1;
+    uint256 public constant VERSION = 2;
 
     mapping(bytes32 => bool) public consumedSalt;
     mapping(address => bool) public isCollection;

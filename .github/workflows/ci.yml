@@ -1,4 +1,4 @@
-name: M4 application, Solidity and PostgreSQL gates
+name: M5 mint policy, Solidity and PostgreSQL gates
 on:
   pull_request:
   push:
@@ -39,7 +39,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Apply PostgreSQL migration
         run: |
-          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));await db.query(fs.readFileSync("db/migrations/002_m3_nft_indexer.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
+          node -e 'const {Client}=require("pg");const fs=require("node:fs");(async()=>{const db=new Client({connectionString:process.env.DATABASE_URL});await db.connect();try{await db.query(fs.readFileSync("db/migrations/001_m2_wallet_auth.sql","utf8"));await db.query(fs.readFileSync("db/migrations/002_m3_nft_indexer.sql","utf8"));await db.query(fs.readFileSync("db/migrations/003_m5_mint_receipts.sql","utf8"));}finally{await db.end()}})().catch(e=>{console.error(e);process.exit(1)})'
       - name: Verify typechecks, canonical NFT reorg and PostgreSQL tests, production build
         run: npm run check
 
@@ -62,7 +62,7 @@ jobs:
           path: .artifacts/m3-network-check.json
           if-no-files-found: warn
 
-  m4-solidity:
+  m5-solidity:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -80,12 +80,12 @@ jobs:
         run: npm run contracts:compile
       - name: Verify bytecode limits and compile manifest (local evidence only)
         run: npm run contracts:analyze
-      - name: Solidity unit, integration, property and adversarial tests
+      - name: M1–M5 Solidity mint, payment, Merkle, nonce, fuzz and adversarial tests
         run: npm run contracts:test
       - name: Preserve compiled bytecode evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m4-compiled-contracts-local-only
-          path: .artifacts/m4-compiled-bytecode.json
+          name: m5-compiled-contracts-local-only
+          path: .artifacts/m5-compiled-bytecode.json
           if-no-files-found: warn
