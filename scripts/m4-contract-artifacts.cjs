@@ -11,7 +11,7 @@ const result = {
   chainIdTarget:18881,
   compiler:"solc-js "+version(),
   openzeppelinContracts:"5.6.1",
-  optimization:{viaIR:true,optimizerRuns:200,evmVersion:"cancun"},
+  optimization:{viaIR:true,optimizerRuns:1,evmVersion:"cancun"},
   creationBytecodeOnly:true,
   deployedOnTestnet:false,
   securityReview:"not independently audited",
