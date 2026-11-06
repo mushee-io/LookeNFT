@@ -4,17 +4,18 @@ import Link from "next/link";
 import { createPublicClient, encodeFunctionData, getAddress, http, isAddress, parseAbi, parseEther, toHex, type Address, type Hex } from "viem";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
+import { previewMetadata } from "@/lib/m4/preview";
 import { factoryAbi,validateCollectionDraft,M4_FACTORY_ADDRESS,M4_CANCUN_VERIFIED,M4_DEPLOY_ENABLED,type CollectionDraft } from "@/lib/m4/factory";
 
 type Standard="erc721"|"erc1155";
 type Form={
  standard:Standard;name:string;symbol:string;description:string;coverUrl:string;
- metadataUri:string;totalCap:string;perIdCap:string;mintPriceUos:string;
+ metadataUri:string;totalCap:string;perIdCap:string;mintPriceUos:string;traits:string;
  perWalletCap:string;royaltyPercent:string;
 };
 const defaults:Form={
- standard:"erc721",name:"",symbol:"",description:"",coverUrl:"",
- metadataUri:"",totalCap:"1000",perIdCap:"1",mintPriceUos:"0",
+ standard:"erc1155",name:"",symbol:"",description:"",coverUrl:"",
+ metadataUri:"",totalCap:"10000",perIdCap:"10000",mintPriceUos:"0",traits:"",
  perWalletCap:"3",royaltyPercent:"0"
 };
 const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
@@ -67,6 +68,7 @@ export default function CreateCollectionPage(){
  const [published,setPublished]=useState(false);
  const [localArtwork,setLocalArtwork]=useState<string|null>(null);
  const [selectedFile,setSelectedFile]=useState(false);
+ const [artworkCount,setArtworkCount]=useState(0);
 
  useEffect(()=>{
   const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
@@ -82,12 +84,12 @@ export default function CreateCollectionPage(){
   return()=>abort.abort();
  },[wallet.authenticated,wallet.address,wallet.chainId]);
  const put=(key:keyof Form,value:string)=>{
-  setForm(old=>({...old,[key]:value}));
+  setForm(old=>({...old,[key]:value,...(key==="totalCap"&&old.standard==="erc1155"?{perIdCap:value}:{})}));
   setConfirmedAddress("");setTxHash(null);setPublished(false);setError("");setNotice("");
  };
  function preview(event:FormEvent){
   event.preventDefault();setError("");setNotice("");
-  try{inspect(form,wallet.address,salt);setStage("preview");window.scrollTo({top:0,behavior:"smooth"});}
+  try{previewMetadata(form,Boolean(localArtwork));setStage("preview");window.scrollTo({top:0,behavior:"smooth"});}
   catch(e){setError(e instanceof Error?e.message:"Invalid collection settings.");}
  }
  async function deploy(){
@@ -158,7 +160,7 @@ export default function CreateCollectionPage(){
   }catch(e){setError(e instanceof Error?e.message:"Publication was blocked.");}
   finally{setBusy(false);}
  }
- if(!wallet.authenticated || authorised===false)return <section className="operator-page">
+ if(!wallet.authenticated||wallet.chainId!==18881)return <section className="operator-page">
   <Link href="/explore" className="curated-back">← NFT collections</Link>
   <p className="curated-overline">PRIVATE CREATE STUDIO</p><h1>Operator access required</h1>
   <p className="operator-note">{!wallet.authenticated?
@@ -166,7 +168,7 @@ export default function CreateCollectionPage(){
    "This account cannot access collection creation. Only the verified LookeNFT operator wallet is authorised."}</p>
   <Link className="inline-link" href="/explore">Return to official collections</Link>
  </section>;
- if(authorised===null)return <section className="operator-page" role="status">Verifying operator access…</section>;
+ const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
  return <section className="operator-page operator-create-page">
   <Link className="curated-back" href="/admin">← Collection control</Link>
   <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
@@ -185,16 +187,19 @@ export default function CreateCollectionPage(){
     <label>Planned mint price (UOS)<input required inputMode="decimal" value={form.mintPriceUos} onChange={e=>put("mintPriceUos",e.target.value)} placeholder="0"/></label>
     <label>Planned limit per wallet<input required type="number" min={1} max={1000} step={1} value={form.perWalletCap} onChange={e=>put("perWalletCap",e.target.value)}/></label>
     <label>Creator royalty (%)<input required inputMode="decimal" value={form.royaltyPercent} onChange={e=>put("royaltyPercent",e.target.value)} placeholder="0"/></label>
-    <label>Choose cover artwork for local preview<input type="file" accept="image/png,image/jpeg,image/webp"
+    <label>Upload artwork for local preview<input type="file" accept="image/png,image/jpeg,image/webp" multiple
       onChange={e=>{
-       const file=e.target.files?.[0];
-       if(!file){setLocalArtwork(null);setSelectedFile(false);return;}
-       if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>10*1024*1024){setError("Choose a PNG, JPEG or WebP image under 10 MB.");e.target.value="";return;}
-       setLocalArtwork(URL.createObjectURL(file));setSelectedFile(true);setError("");
+       const files=Array.from(e.target.files||[]);
+        if(!files.length){setLocalArtwork(null);setSelectedFile(false);setArtworkCount(0);return;}
+        if(files.length>20||files.some(file=>!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>10*1024*1024)){
+          setError("Choose up to 20 PNG, JPEG or WebP images, each under 10 MB.");e.target.value="";return;
+        }
+        setLocalArtwork(URL.createObjectURL(files[0]));setSelectedFile(true);setArtworkCount(files.length);setError("");
       }}/></label>
-    <label>Approved cover image URL<input value={form.coverUrl} onChange={e=>put("coverUrl",e.target.value)} placeholder="https://approved-host.example/cover.png"/></label>
-    <label className="creator-wide">Metadata URI {form.standard==="erc1155"?"(must contain {id})":"(base URI for your token metadata)"}
-      <input required value={form.metadataUri} onChange={e=>put("metadataUri",e.target.value)}
+    {artworkCount>0&&<p className="creator-wide operator-note">{artworkCount} artwork file{artworkCount===1?"":"s"} selected for local preview. Nothing has been uploaded to NFT storage.</p>}
+     <label>Approved cover image URL<input value={form.coverUrl} onChange={e=>put("coverUrl",e.target.value)} placeholder="https://approved-host.example/cover.png"/></label>
+    <label className="creator-wide">Metadata URI (optional for preview; required before deployment) {form.standard==="erc1155"?"(must contain {id})":"(base URI for your token metadata)"}
+      <input value={form.metadataUri} onChange={e=>put("metadataUri",e.target.value)}
        placeholder={form.standard==="erc721"?"ipfs://your-cid/":"ipfs://your-cid/{id}.json"}/></label>
     <label className="creator-wide">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={e=>put("description",e.target.value)} placeholder="Tell collectors about this drop…"/></label>
    </div>
