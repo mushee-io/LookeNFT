@@ -17,6 +17,19 @@ function rootPair(a,b){return ethers.keccak256(ethers.concat([a,b].sort()));}
 describe("M5 mint policy: local Hardhat Cancun VM, not live Testnet",function(){
   let factory,creator,alice,bob;
   beforeEach(async function(){[creator,alice,bob]=await ethers.getSigners();factory=await factoryDeploy();});
+
+  it("specialised CREATE2 deployers reject direct outsider execution",async function(){
+    const deployer721=await ethers.getContractAt("Looke721Deployer",await factory.erc721Deployer());
+    const deployer1155=await ethers.getContractAt("Looke1155Deployer",await factory.erc1155Deployer());
+    assert.equal(await deployer721.factory(),await factory.getAddress());
+    assert.equal(await deployer1155.factory(),await factory.getAddress());
+    await reverts(()=>deployer721.connect(alice).deploy(
+      "Fake","BAD","ipfs://CID/",10n,alice.address,alice.address,0,ethers.ZeroHash
+    ),"OnlyFactory");
+    await reverts(()=>deployer1155.connect(alice).deploy(
+      "ipfs://CID/{id}.json",10n,5n,alice.address,alice.address,0,ethers.ZeroHash
+    ),"OnlyFactory");
+  });
   it("inactive initially; creator-only scheduling; bounded phase parameters",async function(){
     const {c}=await create721(factory,creator);
     const t=await now();

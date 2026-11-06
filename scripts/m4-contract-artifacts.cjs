@@ -4,7 +4,7 @@ const { keccak256, toUtf8Bytes } = require("ethers");
 const fs = require("node:fs");
 const path = require("node:path");
 const { version } = require("solc");
-const names = ["LookeCollectionFactory", "Looke721Collection", "Looke1155Collection"];
+const names = ["LookeCollectionFactory", "Looke721Deployer", "Looke1155Deployer", "Looke721Collection", "Looke1155Collection"];
 const result = {
   schema:"lookenft/m5-compiler-artifacts/v2",
   environment:"local-ci-only",

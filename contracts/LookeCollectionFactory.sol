@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Looke721Collection} from "./Looke721Collection.sol";
-import {Looke1155Collection} from "./Looke1155Collection.sol";
+import {Looke721Deployer} from "./Looke721Deployer.sol";
+import {Looke1155Deployer} from "./Looke1155Deployer.sol";
 
 /**
- * @title LookeCollectionFactory
- * @notice Permissionless creator-pays factory, restricted at bytecode level
- *         to Ultra EVM Testnet (chainId=18881). No admin keys or fees.
- * @dev This contract and custom collection logic are NOT independently audited.
+ * M5 Ultra EVM Testnet-only collection factory V2.
+ * Dedicated factory-bound deployers keep CREATE2 collection initcode out of
+ * this contract's runtime, respecting EIP-170 while retaining deterministic
+ * creator-owned ERC721/1155 deployments. No upgradeability, fees or custody.
+ * Custom code NOT independently audited. Deployments gated by human approval.
  */
 contract LookeCollectionFactory is ReentrancyGuard {
     error WrongChain();
@@ -19,6 +19,9 @@ contract LookeCollectionFactory is ReentrancyGuard {
 
     uint256 public constant ULTRA_TESTNET_CHAIN_ID = 18881;
     uint256 public constant VERSION = 2;
+
+    Looke721Deployer public immutable erc721Deployer;
+    Looke1155Deployer public immutable erc1155Deployer;
 
     mapping(bytes32 => bool) public consumedSalt;
     mapping(address => bool) public isCollection;
@@ -35,6 +38,8 @@ contract LookeCollectionFactory is ReentrancyGuard {
 
     constructor() {
         if (block.chainid != ULTRA_TESTNET_CHAIN_ID) revert WrongChain();
+        erc721Deployer = new Looke721Deployer();
+        erc1155Deployer = new Looke1155Deployer();
     }
 
     function deriveSalt(address creator, bytes32 userSalt) public pure returns (bytes32) {
@@ -54,9 +59,9 @@ contract LookeCollectionFactory is ReentrancyGuard {
         bytes32 salt = deriveSalt(msg.sender, userSalt_);
         if (consumedSalt[salt]) revert SaltAlreadyConsumed();
         consumedSalt[salt] = true;
-        collection = address(new Looke721Collection{salt: salt}(
-            name_, symbol_, baseURI_, maxSupply_, msg.sender, royaltyReceiver_, royaltyBps_
-        ));
+        collection = erc721Deployer.deploy(
+            name_, symbol_, baseURI_, maxSupply_, msg.sender, royaltyReceiver_, royaltyBps_, salt
+        );
         isCollection[collection] = true;
         emit CollectionCreated(msg.sender, collection, 1, salt, maxSupply_, 1, royaltyBps_);
     }
@@ -72,9 +77,9 @@ contract LookeCollectionFactory is ReentrancyGuard {
         bytes32 salt = deriveSalt(msg.sender, userSalt_);
         if (consumedSalt[salt]) revert SaltAlreadyConsumed();
         consumedSalt[salt] = true;
-        collection = address(new Looke1155Collection{salt: salt}(
-            uriTemplate_, totalCap_, perIdCap_, msg.sender, royaltyReceiver_, royaltyBps_
-        ));
+        collection = erc1155Deployer.deploy(
+            uriTemplate_, totalCap_, perIdCap_, msg.sender, royaltyReceiver_, royaltyBps_, salt
+        );
         isCollection[collection] = true;
         emit CollectionCreated(msg.sender, collection, 2, salt, totalCap_, perIdCap_, royaltyBps_);
     }
@@ -89,11 +94,10 @@ contract LookeCollectionFactory is ReentrancyGuard {
         uint96 royaltyBps_,
         bytes32 userSalt_
     ) external view returns (address) {
-        bytes32 creationHash = keccak256(abi.encodePacked(
-            type(Looke721Collection).creationCode,
-            abi.encode(name_, symbol_, baseURI_, maxSupply_, creator_, royaltyReceiver_, royaltyBps_)
-        ));
-        return Create2.computeAddress(deriveSalt(creator_, userSalt_), creationHash);
+        return erc721Deployer.predict(
+            name_, symbol_, baseURI_, maxSupply_, creator_, royaltyReceiver_, royaltyBps_,
+            deriveSalt(creator_, userSalt_)
+        );
     }
 
     function predictERC1155(
@@ -105,10 +109,9 @@ contract LookeCollectionFactory is ReentrancyGuard {
         uint96 royaltyBps_,
         bytes32 userSalt_
     ) external view returns (address) {
-        bytes32 creationHash = keccak256(abi.encodePacked(
-            type(Looke1155Collection).creationCode,
-            abi.encode(uriTemplate_, totalCap_, perIdCap_, creator_, royaltyReceiver_, royaltyBps_)
-        ));
-        return Create2.computeAddress(deriveSalt(creator_, userSalt_), creationHash);
+        return erc1155Deployer.predict(
+            uriTemplate_, totalCap_, perIdCap_, creator_, royaltyReceiver_, royaltyBps_,
+            deriveSalt(creator_, userSalt_)
+        );
     }
 }

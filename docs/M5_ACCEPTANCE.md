@@ -21,7 +21,7 @@ M5 adds `LookeMintPhases.sol`, shared by the ERC-721 and ERC-1155 collections, a
 - ERC-721 maximum mint per transaction: 20 sequential tokens. ERC-1155 maximum per transaction: 1000 units. ERC-1155 per-ID lifetime limit remains enforced.
 - Native UOS payment: `msg.value` must cover `unitPrice*quantity`. Excess is refunded atomically; a rejected refund reverts all mint effects and payment accounting. Creator can withdraw only recorded accrued mint proceeds. Caller-gas fees are external to this accounting.
 - NonReentrant and checks-effects-interactions guard against callback and refund reentrancy. Mint-pause applies to public, allowlist and reserved mint functions, **not existing token transfers**.
-- Factory's chain ID remains 18881, no hard-coded mainnet network and no private keys. This custom code has **not** received an independent audit. ERC-2981 royalties are signals and not enforced by other marketplaces.
+- Factory's chain ID remains 18881. Factory V2 creates two immutable factory-controlled specialised ERC721/1155 CREATE2 deployer contracts. This keeps the main factory's runtime below the EIP-170 24KiB cap without dropping collection prediction or mint safeguards; direct external calls to deployers must revert. The factory initcode must also pass EIP-3860. No mainnet deployment configuration or private keys. This custom code has **not** received an independent audit. ERC-2981 royalties are signals and not enforced by other marketplaces.
 
 ## UI & wallet safeguards
 
