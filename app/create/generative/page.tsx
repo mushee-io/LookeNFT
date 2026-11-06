@@ -182,7 +182,7 @@ export default function GenerativeArtPage() {
      "Artwork and metadata have not been published or minted on any chain.\n"+
      "Upload the images to your trusted NFT asset storage provider. Replace "+
      "REPLACE_WITH_REAL_IMAGES_CID in every metadata image URI with the real "+
-     "pinned images CID, then pin the metadata directory. Verify all mappings "+
+     "pinned images CID, then pin the metadata directory. The existing Ultra ERC-721 contract uses base URI + numeric token ID, so each metadata filename has NO extension (for example metadata/1). Verify all mappings "+
      "before using the metadata base URI in a wallet-approved NFT deployment.\n"+
      "Trait rank and price are NOT on-chain, and no financial operation occurred.\n"
     )},
@@ -192,7 +192,7 @@ export default function GenerativeArtPage() {
     const filename=padded(plan.tokens[i].tokenId);
     const canvas=await paint(layers,plan,i,cache.current);
     entries.push({name:"images/"+filename+".png",bytes:await pngBytes(canvas)});
-    entries.push({name:"metadata/"+filename+".json",bytes:jsonBytes(tokenMetadata(name,description,layers,plan,i))});
+    entries.push({name:"metadata/"+String(plan.tokens[i].tokenId),bytes:jsonBytes(tokenMetadata(name,description,layers,plan,i))});
     setProcessed(i-cursor+1);
     if((i-cursor+1)%8===0)await new Promise<void>(resolve=>window.setTimeout(resolve,0));
    }
@@ -208,7 +208,7 @@ export default function GenerativeArtPage() {
   try{
    const entries:ArchiveEntry[]=[{name:"manifest.json",bytes:jsonBytes(manifest(layers,plan,name,description))}];
    for(let i=0;i<plan.supply;i++){
-    entries.push({name:"metadata/"+padded(i+1)+".json",bytes:jsonBytes(tokenMetadata(name,description,layers,plan,i))});
+    entries.push({name:"metadata/"+String(i+1),bytes:jsonBytes(tokenMetadata(name,description,layers,plan,i))});
    }
    download(zipStore(entries),"lookenft-all-"+plan.supply+"-metadata.zip");
    setMessage("Metadata ZIP downloaded. Its image URLs still contain placeholders until you host the real generated images.");
@@ -299,7 +299,7 @@ export default function GenerativeArtPage() {
   </section>
   {plan&&<section className="gen-panel" aria-label="Export generated NFT images">
    <div className="gen-section-head"><div><span className="gen-step">04</span><h2>Download images & metadata</h2></div><span className="gen-hint">Offline ZIP files</span></div>
-   <p>The artwork is generated and exported in manageable ZIP batches because 10,000 PNGs can be large. Every ZIP includes the real rendered PNGs and matching token JSON metadata. No files are uploaded automatically.</p>
+   <p>The artwork is generated and exported in manageable ZIP batches because 10,000 PNGs can be large. Every ZIP includes real rendered PNGs and matching token JSON metadata, named by token ID without an extension to match the existing ERC-721 contract. No files are uploaded automatically.</p>
    <div className="gen-fields">
     <label>Images per ZIP batch<select disabled={busy} value={batchSize} onChange={e=>setBatchSize(Number(e.target.value))}>
      <option value={25}>25 files</option><option value={50}>50 files</option><option value={100}>100 files</option><option value={200}>200 files</option>
@@ -313,7 +313,7 @@ export default function GenerativeArtPage() {
     <button className="gen-secondary" disabled={busy} onClick={exportAllMetadata}>Download all {plan.supply.toLocaleString()} metadata JSONs</button>
     {cursor>0&&<button className="gen-small-action" disabled={busy} onClick={resetExport}>Restart batch export</button>}
    </div>
-   <p className="gen-tip">The metadata references a <code>REPLACE_WITH_REAL_IMAGES_CID</code> placeholder. Pin all exported images, substitute the genuine CID, then pin the metadata directory. The normal operator deployment flow must verify that storage and the collection contract before opening any mint.</p>
+   <p className="gen-tip">The metadata references a <code>REPLACE_WITH_REAL_IMAGES_CID</code> placeholder. Pin all exported images, substitute the genuine CID, then pin metadata files using unpadded token ID filenames (metadata/1 through metadata/10000). The current ERC-721 contract appends the numeric token ID to its base URI. The normal operator deployment flow must verify that storage and the collection contract before opening any mint.</p>
   </section>}
   <p className="gen-footer"><Link href="/create">← Return to collection publishing studio</Link> · <Link href="/explore">Official NFT gallery</Link></p>
  </section>;
