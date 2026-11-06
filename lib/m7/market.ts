@@ -1,5 +1,5 @@
 import {
-  hashTypedData, isAddress, parseAbi, verifyTypedData, type Address, type Hex
+  hashTypedData, getAddress, isAddress, parseAbi, verifyTypedData, type Address, type Hex
 } from "viem";
 
 export const M7_CHAIN_ID=18881 as const;
@@ -97,8 +97,8 @@ export function parseListingDraft(d:ListingDraft,seller:Address,atSeconds=BigInt
      minSellerProceedsWei>price)
     throw Error("Invalid signed marketplace fees, royalties or minimum proceeds");
   return {
-    seller,collection:d.collection as Address,tokenId,quantity,unitPriceWei,nonce,deadline,
-    reservedBuyer:(reservedBuyer||ZERO_ADDRESS) as Address,
+    seller:getAddress(seller),collection:getAddress(d.collection),tokenId,quantity,unitPriceWei,nonce,deadline,
+    reservedBuyer:getAddress(reservedBuyer||ZERO_ADDRESS),
     minSellerProceedsWei,maxFeeBps:Number(fee),maxRoyaltyBps:Number(royalty),standard
   };
 }

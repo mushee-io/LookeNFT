@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 
 const seller=privateKeyToAccount(("0x"+"1".repeat(64)) as `0x${string}`);
 const contract="0x000000000000000000000000000000000000dEaD";
-const market="0x000000000000000000000000000000000000BEeF";
+const market="0x000000000000000000000000000000000000beef";
 const now=1750000000n;
 const base:ListingDraft={
   collection:contract,tokenId:"1",quantity:"1",unitPriceUOS:"1.5",
@@ -29,7 +29,7 @@ test("M7 ERC721 EIP-712 seller order is domain-separated with exact hash",async(
  });
  assert.equal(await verifyListingSignature(o,market,signature),true);
  assert.equal(await verifyListingSignature({...o,unitPriceWei:o.unitPriceWei+1n},market,signature),false);
- const otherMarket="0x000000000000000000000000000000000000bAbe";
+ const otherMarket="0x000000000000000000000000000000000000babe";
  assert.equal(await verifyListingSignature(o,otherMarket,signature),false);
  assert.match(hashListing(o,market),/^0x[0-9a-fA-F]{64}$/);
  assert.notEqual(hashListing(o,market),hashListing(o,otherMarket));
