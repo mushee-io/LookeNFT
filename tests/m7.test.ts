@@ -69,7 +69,7 @@ test("M7 UOS fee and royalty accounting is exact and bounded",()=>{
 });
 
 test("M7 contract ABI exposes EIP712 listing, cancellation and atomic buy only",()=>{
- const names=marketAbi.filter(x=>x.type==="function").map(x=>x.name);
+ const names: string[]=marketAbi.filter(x=>x.type==="function").map(x=>x.name);
  for(const name of ["buy","quote","hashListing","cancelNonce","raiseMinimumNonce","isFillable"])
   assert.ok(names.includes(name),name+" missing");
  assert.ok(!names.includes("withdraw"));
