@@ -9,6 +9,7 @@ export default function HomePage(){
       <p className="looke-landing-features">Official collections <span>·</span> Collection previews <span>·</span> Wallet-approved minting</p>
       <div className="looke-landing-actions">
         <Link href="/explore" className="looke-landing-primary">Enter NFT Market <span aria-hidden="true">↗</span></Link>
+        <Link href="/create" className="looke-landing-create">+ Create NFT Preview</Link>
       </div>
       <p className="looke-landing-notice">Ultra EVM Testnet preview · Only the LookeNFT operator publishes drops · Minting remains gated</p>
     </div>
