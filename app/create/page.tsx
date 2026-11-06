@@ -65,10 +65,13 @@ export default function CreateCollectionPage(){
  const [confirmedAddress,setConfirmedAddress]=useState("");
  const [manualAddress,setManualAddress]=useState("");
  const [published,setPublished]=useState(false);
+ const [localArtwork,setLocalArtwork]=useState<string|null>(null);
+ const [selectedFile,setSelectedFile]=useState(false);
 
  useEffect(()=>{
   const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
  },[]);
+ useEffect(()=>()=>{if(localArtwork)URL.revokeObjectURL(localArtwork);},[localArtwork]);
  useEffect(()=>{
   setAuthorised(null);
   if(!wallet.authenticated||wallet.chainId!==18881){setAuthorised(false);return;}
@@ -133,6 +136,7 @@ export default function CreateCollectionPage(){
   setError("");setNotice("");setBusy(true);
   try{
    inspect(form,wallet.address,salt);
+   if(selectedFile&&!form.coverUrl.trim())throw Error("The locally selected cover is only a preview. Host and approve the artwork, then enter its HTTPS URL before publishing.");
    const address=(confirmedAddress||manualAddress).trim();
    if(!isAddress(address,{strict:false}))throw Error("Deploy a collection or enter an already verified collection contract address first.");
    if(txHash&&confirmedAddress&&address.toLowerCase()===confirmedAddress.toLowerCase()){
@@ -181,17 +185,24 @@ export default function CreateCollectionPage(){
     <label>Planned mint price (UOS)<input required inputMode="decimal" value={form.mintPriceUos} onChange={e=>put("mintPriceUos",e.target.value)} placeholder="0"/></label>
     <label>Planned limit per wallet<input required type="number" min={1} max={1000} step={1} value={form.perWalletCap} onChange={e=>put("perWalletCap",e.target.value)}/></label>
     <label>Creator royalty (%)<input required inputMode="decimal" value={form.royaltyPercent} onChange={e=>put("royaltyPercent",e.target.value)} placeholder="0"/></label>
+    <label>Choose cover artwork for local preview<input type="file" accept="image/png,image/jpeg,image/webp"
+      onChange={e=>{
+       const file=e.target.files?.[0];
+       if(!file){setLocalArtwork(null);setSelectedFile(false);return;}
+       if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>10*1024*1024){setError("Choose a PNG, JPEG or WebP image under 10 MB.");e.target.value="";return;}
+       setLocalArtwork(URL.createObjectURL(file));setSelectedFile(true);setError("");
+      }}/></label>
     <label>Approved cover image URL<input value={form.coverUrl} onChange={e=>put("coverUrl",e.target.value)} placeholder="https://approved-host.example/cover.png"/></label>
     <label className="creator-wide">Metadata URI {form.standard==="erc1155"?"(must contain {id})":"(base URI for your token metadata)"}
       <input required value={form.metadataUri} onChange={e=>put("metadataUri",e.target.value)}
        placeholder={form.standard==="erc721"?"ipfs://your-cid/":"ipfs://your-cid/{id}.json"}/></label>
     <label className="creator-wide">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={e=>put("description",e.target.value)} placeholder="Tell collectors about this drop…"/></label>
    </div>
-   <p className="operator-note">The artwork and token metadata must be genuinely hosted before deployment. Mint price and per-wallet limits are plans only: a separately wallet-approved on-chain mint phase is required to make them enforceable. Previewing does not mint or charge anybody.</p>
+   <p className="operator-note">Local files are for preview only; publishable artwork must have an approved hosted HTTPS URL. Token metadata must be genuinely hosted before deployment. Mint price and per-wallet limits are plans only: a separately wallet-approved on-chain mint phase is required to make them enforceable. Previewing does not mint or charge anybody.</p>
    <button type="submit">Preview collection →</button>
   </form>:<>
    <div className="creator-preview">
-    <div className="creator-preview-image">{form.coverUrl?<img src={form.coverUrl} alt="Draft collection cover"/>:<span>◇<small>Cover image not set</small></span>}</div>
+    <div className="creator-preview-image">{(localArtwork||form.coverUrl)?<img src={localArtwork||form.coverUrl} alt="Draft collection cover"/>:<span>◇<small>Cover image not set</small></span>}</div>
     <div className="creator-preview-info"><p className="curated-overline">UNPUBLISHED DRAFT · PREVIEW ONLY</p>
      <h2>{form.name}</h2><p>{form.description||"No description yet."}</p>
      <div className="creator-preview-stats"><span>Network<strong>Ultra EVM Testnet</strong></span><span>Standard<strong>{form.standard.toUpperCase()}</strong></span><span>Supply<strong>{form.totalCap}</strong></span><span>Planned mint price<strong>{form.mintPriceUos} UOS</strong></span><span>Per wallet (planned)<strong>{form.perWalletCap}</strong></span><span>Royalty<strong>{form.royaltyPercent}%</strong></span></div>
