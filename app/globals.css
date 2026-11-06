@@ -417,3 +417,17 @@ body:has(.curated-page) .footer,body:has(.operator-page) .footer{max-width:1190p
  .curated-heading-actions{gap:10px;}
  .operator-create-nav{padding:10px 14px;}
 }
+
+
+/* Design-only creator access must not depend on an authenticated wallet. */
+.looke-landing-create {
+ border:1px solid #ff55a0;color:#ffc4df;
+ background:#281725;
+}
+.looke-landing-create:hover {background:#472337;color:#fff;}
+body:has(.looke-landing) .site-nav{display:flex;}
+body:has(.looke-landing) .site-nav>a:first-child{color:#cbbfd0;}
+body:has(.looke-landing) .site-nav .operator-create-nav{font-size:12px;}
+@media(max-width:720px){
+ body:has(.looke-landing) .site-nav{width:100%;order:3;justify-content:flex-start;}
+}
