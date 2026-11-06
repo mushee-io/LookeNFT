@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { createPublicClient,http,parseAbi } from "viem";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { getDb } from "@/lib/server/db";
-import { requireSession } from "@/lib/server/auth";
+import { requireOperator } from "@/lib/server/curation";
 import { ApiError,apiFailure,guardMutation,noStore,parseBody } from "@/lib/server/http";
 import { checkCollectionCreator } from "@/lib/m6/metadata";
 import { metadataUrl } from "@/lib/indexer/metadata";
@@ -16,7 +16,7 @@ const uri1155=parseAbi(["function uri(uint256) view returns (string)"]);
 export async function POST(request:NextRequest){
   try{
     guardMutation(request);
-    const session=await requireSession(request);
+    const session={ wallet: await requireOperator(request) };
     const body=await parseBody(request,500);
     if(typeof body.id!=="string"||!/^[a-f0-9-]{36}$/i.test(body.id))
       throw new ApiError(400,"Valid metadata version UUID required");
