@@ -271,13 +271,13 @@ export default function GenerativeArtPage() {
    <div className="gen-section-head"><div><span className="gen-step">03</span><h2>Generate & preview</h2></div>
      <span className="gen-hint">No blockchain transaction</span>
    </div>
-   <p>Click Generate to plan up to 10,000 **unique** combinations from your uploaded artwork. If there aren't enough possible combinations, the generator will tell you what to add.</p>
+   <p>Click Generate to plan up to 10,000 unique combinations from your uploaded artwork. If there aren't enough possible combinations, the generator will tell you what to add.</p>
    <button className="gen-primary" disabled={busy} onClick={()=>void prepare()}>{busy?"Working…":"Generate "+(Number.isFinite(supply)?supply.toLocaleString():"")+" unique Punks"}</button>
    {message&&<p className="gen-good" role="status">{message}</p>}
    {error&&<p className="operator-error" role="alert">{error}</p>}
    {plan&&<><div className="gen-stats">
     <div><span>Planned NFTs</span><strong>{plan.supply.toLocaleString()}</strong></div>
-    <div><span>Distinct combinations available</span><strong>{Number(plan.capacity).toLocaleString()}</strong></div>
+    <div><span>Distinct combinations available</span><strong>{BigInt(plan.capacity).toLocaleString()}</strong></div>
     <div><span>Unique generated</span><strong>{plan.tokens.length.toLocaleString()}</strong></div>
     <div><span>Duplicate combinations</span><strong>0</strong></div>
    </div>
