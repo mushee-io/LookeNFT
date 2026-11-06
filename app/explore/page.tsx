@@ -3,17 +3,18 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type Drop={address:string;standard:"erc721"|"erc1155";title:string;description:string;coverUrl:string|null;status:"draft"|"published";mintAvailable:boolean;publishedAt:string|null};
-type Result={collections?:Drop[];error?:string};
+type Result={collections?:Drop[];error?:string;catalogueReady?:boolean};
 export default function ExplorePage(){
   const [collections,setCollections]=useState<Drop[]>([]);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState<string|null>(null);
+  const [catalogueReady,setCatalogueReady]=useState(true);
   const [search,setSearch]=useState("");
   useEffect(()=>{
     const ctl=new AbortController();
     fetch("/api/curated",{signal:ctl.signal,cache:"no-store"})
       .then(async r=>{const data=await r.json() as Result;if(!r.ok)throw new Error(data.error||"Curated catalogue unavailable");return data;})
-      .then(data=>{if(!ctl.signal.aborted)setCollections(data.collections||[]);})
+      .then(data=>{if(!ctl.signal.aborted)setCollections(data.collections||[]);setCatalogueReady(data.catalogueReady!==false);})
       .catch(e=>{if(!ctl.signal.aborted)setError(e instanceof Error?e.message:"Unable to load collections");})
       .finally(()=>{if(!ctl.signal.aborted)setLoading(false);});
     return ()=>ctl.abort();
@@ -35,6 +36,6 @@ export default function ExplorePage(){
         <p>{drop.description||"Official LookeNFT collection on Ultra EVM."}</p>
         <div className="curated-card-bottom"><span>{drop.standard.toUpperCase()} · Testnet</span><strong>{drop.mintAvailable?"Mint open":"Preview"}</strong></div></div>
       </Link>)}</div>:
-      <div className="curated-empty"><div className="curated-empty-icon">◇</div><h3>{search?"No matching drops":"No public NFT drops yet"}</h3><p>{search?"Try another collection name.":"The LookeNFT operator will publish collections here when their on-chain verification and preview are ready. No placeholder collections are shown."}</p></div>}
+      <div className="curated-empty"><div className="curated-empty-icon">◇</div><h3>{search?"No matching drops":catalogueReady?"No public NFT drops yet":"Official drops are coming"}</h3><p>{search?"Try another collection name.":"The LookeNFT operator will publish collections here after on-chain verification. No placeholder collections are shown."}</p></div>}
   </section>;
 }

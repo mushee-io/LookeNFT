@@ -14,7 +14,7 @@ export default function HomePage(){
     </div>
     <div className="looke-landing-bottom">
       <span>Curated by LookeNFT. Mint only when a drop is officially opened.</span>
-      <div className="looke-landing-bottom-links"><Link href="/explore">Browse collections</Link><Link href="/final-acceptance">Release status</Link></div>
+      <div className="looke-landing-bottom-links"><Link href="/explore">Browse collections</Link></div>
     </div>
   </section>;
 }
