@@ -37,7 +37,7 @@ export default function OperatorConsole(){
  }
  function register(e:FormEvent<HTMLFormElement>){e.preventDefault();void mutate("POST",{address,title,description,coverUrl,phaseId});}
  return <section className="operator-page"><Link className="curated-back" href="/explore">← Back to NFT collections</Link>
-  <p className="curated-overline">PRIVATE OPERATOR CONSOLE</p><h1>LookeNFT collection control</h1>
+  <p className="curated-overline">PRIVATE OPERATOR CONSOLE</p><p><Link className="curated-mint" href="/create">+ Create a new collection</Link></p><h1>LookeNFT collection control</h1>
   <p>Only the configured LookeNFT wallet can register verified contracts, preview drafts, and publish official collections. Other wallets cannot create or publish drops here.</p>
   <p className="operator-note">Collection deployment remains a separately wallet-signed operator process. Publishing never starts minting automatically. Minting stays disabled until independent release approval.</p>
   {!wallet.authenticated?<p className="operator-note">Connect and sign in with the authorised Ultra EVM Testnet wallet to manage collections.</p>:
