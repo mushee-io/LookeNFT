@@ -76,7 +76,7 @@ export default function CreatePage() {
         rpc.readContract({ address: factory, abi: factoryAbi, functionName: "ULTRA_TESTNET_CHAIN_ID" }),
         rpc.readContract({ address: factory, abi: factoryAbi, functionName: "VERSION" })
       ]);
-      if (factoryChain !== 18881n || factoryVersion !== 1n)
+      if (factoryChain !== 18881n || factoryVersion !== 2n)
         throw new Error("Deployed factory identity/version mismatch");
       const creator = getAddress(wallet.address);
       const predicted = config.standard === "erc721"
