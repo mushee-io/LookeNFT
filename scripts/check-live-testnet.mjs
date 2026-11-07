@@ -55,6 +55,19 @@ try {
     note:"Read-only Ultra Testnet public transaction diagnostic. Not an approval or new transaction."
   };
   console.log("PENGUIN_DEPLOYMENT_DIAGNOSTIC "+JSON.stringify(outcome.penguinDeploymentDiagnostic));
+  if(receiptResult?.contractAddress){
+    const collection=receiptResult.contractAddress;
+    const [code, owner, erc721]=await Promise.all([
+      rpc("eth_getCode",[collection,"latest"]).catch(()=>null),
+      rpc("eth_call",[{to:collection,data:"0x8da5cb5b"},"latest"]).catch(()=>null),
+      rpc("eth_call",[{to:collection,data:"0x01ffc9a7"+"80ac58cd".padStart(64,"0")},"latest"]).catch(()=>null)
+    ]);
+    outcome.penguinDeploymentDiagnostic.bytecodeLength=typeof code==="string"?(code.length-2)/2:null;
+    outcome.penguinDeploymentDiagnostic.owner=typeof owner==="string"&&owner.length>=42?"0x"+owner.slice(-40):null;
+    outcome.penguinDeploymentDiagnostic.supportsERC721=typeof erc721==="string"?BigInt(erc721)!==0n:null;
+    console.log("PENGUIN_NFT_ONCHAIN_PROOF "+JSON.stringify(outcome.penguinDeploymentDiagnostic));
+  }
+
   const response = await fetch(outcome.explorer + "/api/v2/blocks/" + comparedHeight, {
     redirect: "error", signal: AbortSignal.timeout(12000)
   });
