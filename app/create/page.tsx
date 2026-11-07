@@ -1,11 +1,11 @@
 "use client";
 import { useEffect,useState,type FormEvent } from "react";
 import Link from "next/link";
-import { createPublicClient, encodeFunctionData, getAddress, http, isAddress, parseEther, toHex, type Address, type Hex } from "viem";
+import { createPublicClient, encodeDeployData, encodeFunctionData, getAddress, http, isAddress, parseAbi, parseEther, toHex, type Hex } from "viem";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { previewMetadata } from "@/lib/m4/preview";
-import { factoryAbi,validateCollectionDraft,M4_FACTORY_ADDRESS,M4_CANCUN_VERIFIED,M4_DEPLOY_ENABLED,type CollectionDraft } from "@/lib/m4/factory";
+import {validateCollectionDraft,type CollectionDraft} from "@/lib/m4/factory";
 
 type Standard="erc721"|"erc1155";
 type Form={
@@ -19,7 +19,11 @@ const defaults:Form={
  perWalletCap:"3",royaltyPercent:"0"
 };
 const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
-const deployAllowed=M4_CANCUN_VERIFIED&&M4_DEPLOY_ENABLED&&isAddress(M4_FACTORY_ADDRESS,{strict:false});
+const erc721Constructor=parseAbi(["constructor(string name_,string symbol_,string baseURI_,uint256 maxSupply_,address creator_,address royaltyReceiver_,uint96 royaltyBps_)"]);
+const erc1155Constructor=parseAbi(["constructor(string uriTemplate_,uint256 totalCap_,uint256 perIdCap_,address creator_,address royaltyReceiver_,uint96 royaltyBps_)"]);
+const nftOwnershipAbi=parseAbi(["function owner() view returns (address)","function supportsInterface(bytes4) view returns (bool)"]);
+const mint721Abi=parseAbi(["function mintReserved(address recipient) returns (uint256)","function ownerOf(uint256) view returns (address)"]);
+const mint1155Abi=parseAbi(["function mintReserved(address recipient,uint256 tokenId,uint256 quantity)","function balanceOf(address,uint256) view returns (uint256)"]);
 
 function inspect(form:Form,wallet:string|null,salt:string){
  if(!wallet||!isAddress(wallet,{strict:false}))throw Error("Connect and sign in with an Ultra EVM Testnet wallet.");
@@ -63,6 +67,7 @@ export default function CreateCollectionPage(){
  const [txHash,setTxHash]=useState<Hex|null>(null);
  const [confirmedAddress,setConfirmedAddress]=useState("");
  const [published,setPublished]=useState(false);
+ const [mintedTxHash,setMintedTxHash]=useState<Hex|null>(null);
  const [localArtwork,setLocalArtwork]=useState<string|null>(null);
  const [selectedFile,setSelectedFile]=useState(false);
  const [artworkCount,setArtworkCount]=useState(0);
@@ -71,11 +76,12 @@ export default function CreateCollectionPage(){
   const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
  },[]);
  useEffect(()=>()=>{if(localArtwork)URL.revokeObjectURL(localArtwork);},[localArtwork]);
- const eligible=wallet.authenticated && wallet.chainId===18881 && !!wallet.address;
+ const eligible=wallet.chainId===18881 && !!wallet.address;
+ const canList=eligible && wallet.authenticated;
 
  const put=(key:keyof Form,value:string)=>{
   setForm(old=>({...old,[key]:value,...(key==="totalCap"&&old.standard==="erc1155"?{perIdCap:value}:{})}));
-  setConfirmedAddress("");setTxHash(null);setPublished(false);setError("");setNotice("");
+  setConfirmedAddress("");setTxHash(null);setPublished(false);setMintedTxHash(null);setError("");setNotice("");
  };
  function preview(event:FormEvent){
   event.preventDefault();setError("");setNotice("");
@@ -83,47 +89,70 @@ export default function CreateCollectionPage(){
   catch(e){setError(e instanceof Error?e.message:"Invalid collection settings.");}
  }
  async function deploy(){
-  if(!eligible){setError("Connect and sign in with your Ultra Testnet wallet first.");return;}
+  if(!eligible){setError("Connect your wallet to Ultra EVM Testnet to create an NFT.");return;}
   setError("");setNotice("");setBusy(true);
   try{
    const {validated}=inspect(form,wallet.address,salt);
-   if(!deployAllowed||!isAddress(M4_FACTORY_ADDRESS,{strict:false}))
-    throw Error("Public Testnet V2 factory is not configured and independently verified.");
-   const factory=getAddress(M4_FACTORY_ADDRESS);
-   const owner=getAddress(validated.royaltyReceiver);
-   const [chainId,version,factoryCode]=await Promise.all([
-    rpc.getChainId(),
-    rpc.readContract({address:factory,abi:factoryAbi,functionName:"VERSION"}),
-    rpc.getCode({address:factory})
-   ]);
-   if(chainId!==18881||version!==2n||!factoryCode||factoryCode==="0x")
-    throw Error("A verified permissionless V2 factory on Ultra Testnet is required. Owner-only V3 cannot serve public creators.");
-   const expected=validated.standard==="erc721"
-    ? await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC721",
-      args:[owner,validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
-    : await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC1155",
-      args:[owner,validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
+   const filename=validated.standard==="erc721"?"create-erc721.json":"create-erc1155.json";
+   const response=await fetch("/contracts/"+filename,{cache:"force-cache"});
+   if(!response.ok)throw Error("NFT creation bytecode is not available in this website build.");
+   const artifact=await response.json() as {standard?:string;chainId?:number;evmVersion?:string;bytecode?:string};
+   if(artifact.chainId!==18881||artifact.standard!==validated.standard||
+      artifact.evmVersion!=="paris"||!/^0x[0-9a-fA-F]{200,500000}$/.test(artifact.bytecode||""))
+     throw Error("Invalid Ultra Testnet NFT contract artifact.");
+   const owner=getAddress(wallet.address!);
+   const bytecode=artifact.bytecode as Hex;
    const calldata=validated.standard==="erc721"
-    ? encodeFunctionData({abi:factoryAbi,functionName:"createERC721",
-      args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
-    : encodeFunctionData({abi:factoryAbi,functionName:"createERC1155",
-      args:[validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
-   const tx=await wallet.submitFactoryDeployment(factory,calldata);
-   setTxHash(tx);setNotice("Transaction submitted. Waiting for Ultra Testnet confirmation; collection is NOT yet published.");
+    ?encodeDeployData({abi:erc721Constructor,bytecode,args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,owner,validated.royaltyBps]})
+    :encodeDeployData({abi:erc1155Constructor,bytecode,args:[validated.uri,validated.totalCap,validated.perIdCap,owner,owner,validated.royaltyBps]});
+   const tx=await wallet.submitDirectNFTDeployment(calldata);
+   setTxHash(tx);
+   setNotice("Creation submitted from your wallet. Confirming your NFT contract on Ultra EVM Testnet.");
    const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
-   if(receipt.status!=="success")throw Error("Ultra Testnet rejected the deployment transaction.");
-   const [code,registered]=await Promise.all([
-    rpc.getCode({address:expected}),
-    rpc.readContract({address:factory,abi:factoryAbi,functionName:"isCollection",args:[expected]})
+   if(receipt.status!=="success"||receipt.to!==null||!receipt.contractAddress)
+    throw Error("The creation transaction did not deploy an NFT contract.");
+   const address=receipt.contractAddress;
+   const [code,ownedBy,supported]=await Promise.all([
+    rpc.getCode({address}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"owner"}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"supportsInterface",
+      args:[validated.standard==="erc721"?"0x80ac58cd":"0xd9b67a26"]})
    ]);
-   if(!code||code==="0x"||!registered)throw Error("Deployment confirmed, but public V2 factory registration was not verified.");
-   setConfirmedAddress(expected);
-   setNotice("Collection deployment confirmed at "+expected+". Wait for 12 confirmations before listing the creator-owned collection.");
-  }catch(e){setError(e instanceof Error?e.message:"Unable to confirm Ultra Testnet deployment.");}
+   if(!code||code==="0x"||ownedBy.toLowerCase()!==owner.toLowerCase()||!supported)
+    throw Error("Your transaction confirmed but NFT owner or interface verification failed.");
+   setConfirmedAddress(address);
+   setNotice("Your NFT collection is deployed on Ultra EVM Testnet. You own it. Mint an NFT below or list it in LookeNFT.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to deploy Testnet NFT.");}
+  finally{setBusy(false);}
+ }
+ async function mintFirstNFT(){
+  if(!eligible||!confirmedAddress){setError("Connect your Testnet wallet and deploy a collection first.");return;}
+  setError("");setBusy(true);
+  try{
+   const creator=getAddress(wallet.address!);
+   const contract=getAddress(confirmedAddress);
+   const owner=await rpc.readContract({address:contract,abi:nftOwnershipAbi,functionName:"owner"});
+   if(owner.toLowerCase()!==creator.toLowerCase())throw Error("Only the owner can mint from their new collection.");
+   const calldata=form.standard==="erc721"
+    ?encodeFunctionData({abi:mint721Abi,functionName:"mintReserved",args:[creator]})
+    :encodeFunctionData({abi:mint1155Abi,functionName:"mintReserved",args:[creator,1n,1n]});
+   const tx=await wallet.submitCreatorReserveMint(contract,calldata);
+   const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
+   if(receipt.status!=="success")throw Error("The NFT mint transaction was unsuccessful.");
+   if(form.standard==="erc721"){
+    const tokenOwner=await rpc.readContract({address:contract,abi:mint721Abi,functionName:"ownerOf",args:[1n]});
+    if(tokenOwner.toLowerCase()!==creator.toLowerCase())throw Error("Mint confirmed, but NFT #1 ownership is unverified.");
+   }else{
+    const balance=await rpc.readContract({address:contract,abi:mint1155Abi,functionName:"balanceOf",args:[creator,1n]});
+    if(balance<1n)throw Error("Mint confirmed, but NFT #1 balance is unverified.");
+   }
+   setMintedTxHash(tx);
+   setNotice("NFT #1 has been minted to your wallet on Ultra EVM Testnet. No platform fee was charged.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to mint NFT.");}
   finally{setBusy(false);}
  }
  async function publishCollection(){
-  if(!eligible){setError("Connect and sign in with your Testnet wallet first.");return;}
+  if(!canList){setError("Sign in with your connected Testnet wallet to list the collection.");return;}
   setError("");setNotice("");setBusy(true);
   try {
    inspect(form,wallet.address,salt);
