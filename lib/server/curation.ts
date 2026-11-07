@@ -11,6 +11,8 @@ export type CuratedCollection = {
   title: string;
   description: string;
   coverUrl: string | null;
+  avatarUrl: string | null;
+  creatorWallet: string;
   phaseId: string;
   status: "draft" | "published";
   mintEnabled: boolean;
@@ -81,11 +83,11 @@ export async function verifyOperatorCollection(addressRaw:string,operator:string
     throw new ApiError(403,"Collection contract must be owned by the authorised operator wallet");
   return {address:address.toLowerCase(),standard:registry.rows[0].token_standard};
 }
-type Row={contract_address:string;token_standard:"erc721"|"erc1155";title:string;description:string;cover_url:string|null;mint_phase_id:string;status:"draft"|"published";mint_enabled:boolean;published_at:Date|null};
+type Row={contract_address:string;token_standard:"erc721"|"erc1155";title:string;description:string;cover_url:string|null;avatar_url:string|null;operator_wallet:string;mint_phase_id:string;status:"draft"|"published";mint_enabled:boolean;published_at:Date|null};
 export async function curatedCollections(publicOnly=true, address?:string): Promise<CuratedCollection[]> {
   const r=await getDb().query<Row>(
     `SELECT c.contract_address,n.token_standard,c.title,c.description,c.cover_url,
-            c.mint_phase_id::text,c.status,c.mint_enabled,c.published_at
+            c.mint_phase_id::text,c.status,c.mint_enabled,c.published_at,c.avatar_url,c.operator_wallet
      FROM looke_curated_collections c
      INNER JOIN nft_collections n ON n.chain_id=c.chain_id AND n.contract_address=c.contract_address
      WHERE c.chain_id=18881 AND ($1::boolean=FALSE OR c.status='published')
@@ -93,11 +95,34 @@ export async function curatedCollections(publicOnly=true, address?:string): Prom
      ORDER BY c.published_at DESC NULLS LAST,c.created_at DESC LIMIT 100`,
     [publicOnly,address||null]
   );
-  return r.rows.map(x=>({
-    address:x.contract_address,standard:x.token_standard,title:x.title,
-    description:x.description,coverUrl:x.cover_url,phaseId:x.mint_phase_id,
-    status:x.status,mintEnabled:x.mint_enabled,
-    mintAvailable:x.status==="published"&&x.mint_enabled&&releaseMintEnabled(),
-    publishedAt:x.published_at?.toISOString()||null
+  // Creator-opened FREE phases use the actual NFT contract, not the legacy
+  // operator factory/M12 launch gate. Paid phases still remain off.
+  const freeAbi=parseAbi([
+    "function paused() view returns (bool)",
+    "function mintPhases(uint256) view returns (uint64 start,uint64 end,uint96 unitPrice,uint32 walletCap,uint32 phaseCap,uint32 minted,bytes32 merkleRoot,bool cancelled)"
+  ]);
+  const block=r.rows.some(x=>x.mint_enabled && x.status==="published")
+    ?await rpc.getBlock({blockTag:"latest"}).catch(()=>null):null;
+  return Promise.all(r.rows.map(async x=>{
+    let mintAvailable=false;
+    if(block&&x.mint_enabled&&x.status==="published"){
+      try{
+        const address=x.contract_address as Address;
+        const [paused,phase]=await Promise.all([
+          rpc.readContract({address,abi:freeAbi,functionName:"paused",blockNumber:block.number}),
+          rpc.readContract({address,abi:freeAbi,functionName:"mintPhases",args:[BigInt(x.mint_phase_id)],blockNumber:block.number})
+        ]);
+        const [start,end,price,walletCap,cap,minted,root,cancelled]=phase;
+        mintAvailable=!paused&&!cancelled&&price===0n&&root==="0x"+"0".repeat(64)&&
+          walletCap>0&&cap>minted&&block.timestamp>=start&&block.timestamp<=end;
+      }catch{mintAvailable=false;}
+    }
+    return {
+      address:x.contract_address,standard:x.token_standard,title:x.title,
+      description:x.description,coverUrl:x.cover_url,avatarUrl:x.avatar_url,
+      creatorWallet:x.operator_wallet,phaseId:x.mint_phase_id,
+      status:x.status,mintEnabled:x.mint_enabled,mintAvailable,
+      publishedAt:x.published_at?.toISOString()||null
+    };
   }));
 }

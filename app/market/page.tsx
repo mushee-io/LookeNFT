@@ -57,6 +57,14 @@ export default function MarketplacePage(){
   const [scope,setScope]=useState<"all"|"mine">("all");
   const authed=Boolean(wallet.authenticated&&wallet.address&&wallet.chainId===18881);
   const gateList=m7Gate("list"),gateBuy=m7Gate("buy");
+  useEffect(()=>{
+    const query=new URLSearchParams(window.location.search);
+    const collection=query.get("collection")||"";
+    const tokenId=query.get("tokenId")||"";
+    if(isAddress(collection,{strict:false}))
+      setDraft(current=>({...current,collection,tokenId:/^(0|[1-9][0-9]*)$/.test(tokenId)?tokenId:current.tokenId}));
+  },[]);
+
   function edit<K extends keyof ListingDraft>(key:K,value:ListingDraft[K]){
     setDraft(d=>({...d,[key]:value}));setPreview(null);setError(null);setStatus("Draft changed; on-chain checks must be repeated.");
   }
