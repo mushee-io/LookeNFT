@@ -1,7 +1,7 @@
 "use client";
 import { useEffect,useState,type FormEvent } from "react";
 import Link from "next/link";
-import { createPublicClient, encodeFunctionData, getAddress, http, isAddress, parseAbi, parseEther, toHex, type Address, type Hex } from "viem";
+import { createPublicClient, encodeFunctionData, getAddress, http, isAddress, parseEther, toHex, type Address, type Hex } from "viem";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { previewMetadata } from "@/lib/m4/preview";
@@ -14,16 +14,15 @@ type Form={
  perWalletCap:string;royaltyPercent:string;
 };
 const defaults:Form={
- standard:"erc1155",name:"",symbol:"",description:"",coverUrl:"",
- metadataUri:"",totalCap:"10000",perIdCap:"10000",mintPriceUos:"0",traits:"",
+ standard:"erc721",name:"",symbol:"",description:"",coverUrl:"",
+ metadataUri:"",totalCap:"10",perIdCap:"1",mintPriceUos:"0",traits:"",
  perWalletCap:"3",royaltyPercent:"0"
 };
 const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
-const ownerAbi=parseAbi(["function owner() view returns (address)"]);
 const deployAllowed=M4_CANCUN_VERIFIED&&M4_DEPLOY_ENABLED&&isAddress(M4_FACTORY_ADDRESS,{strict:false});
 
 function inspect(form:Form,wallet:string|null,salt:string){
- if(!wallet||!isAddress(wallet,{strict:false}))throw Error("Connect the authorised Ultra Testnet wallet.");
+ if(!wallet||!isAddress(wallet,{strict:false}))throw Error("Connect and sign in with an Ultra EVM Testnet wallet.");
  if(form.name.trim().length<2||form.name.trim().length>90)throw Error("Collection name must be 2–90 characters.");
  if(form.description.length>1200)throw Error("Description cannot exceed 1200 characters.");
  if(form.coverUrl){
@@ -55,7 +54,6 @@ async function readAdmin(res:Response){
 
 export default function CreateCollectionPage(){
  const wallet=useWalletSession();
- const [authorised,setAuthorised]=useState<boolean|null>(null);
  const [form,setForm]=useState<Form>(defaults);
  const [salt,setSalt]=useState("");
  const [stage,setStage]=useState<"edit"|"preview">("edit");
@@ -64,7 +62,6 @@ export default function CreateCollectionPage(){
  const [notice,setNotice]=useState("");
  const [txHash,setTxHash]=useState<Hex|null>(null);
  const [confirmedAddress,setConfirmedAddress]=useState("");
- const [manualAddress,setManualAddress]=useState("");
  const [published,setPublished]=useState(false);
  const [localArtwork,setLocalArtwork]=useState<string|null>(null);
  const [selectedFile,setSelectedFile]=useState(false);
@@ -74,15 +71,8 @@ export default function CreateCollectionPage(){
   const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
  },[]);
  useEffect(()=>()=>{if(localArtwork)URL.revokeObjectURL(localArtwork);},[localArtwork]);
- useEffect(()=>{
-  setAuthorised(null);
-  if(!wallet.authenticated||wallet.chainId!==18881){setAuthorised(false);return;}
-  const abort=new AbortController();
-  fetch("/api/admin/collections",{cache:"no-store",credentials:"same-origin",signal:abort.signal})
-   .then(r=>{if(!abort.signal.aborted)setAuthorised(r.ok);})
-   .catch(()=>{if(!abort.signal.aborted)setAuthorised(false);});
-  return()=>abort.abort();
- },[wallet.authenticated,wallet.address,wallet.chainId]);
+ const eligible=wallet.authenticated && wallet.chainId===18881 && !!wallet.address;
+
  const put=(key:keyof Form,value:string)=>{
   setForm(old=>({...old,[key]:value,...(key==="totalCap"&&old.standard==="erc1155"?{perIdCap:value}:{})}));
   setConfirmedAddress("");setTxHash(null);setPublished(false);setError("");setNotice("");
@@ -93,21 +83,21 @@ export default function CreateCollectionPage(){
   catch(e){setError(e instanceof Error?e.message:"Invalid collection settings.");}
  }
  async function deploy(){
-  if(!authorised)return;
+  if(!eligible){setError("Connect and sign in with your Ultra Testnet wallet first.");return;}
   setError("");setNotice("");setBusy(true);
   try{
    const {validated}=inspect(form,wallet.address,salt);
    if(!deployAllowed||!isAddress(M4_FACTORY_ADDRESS,{strict:false}))
-    throw Error("Operator-only V3 factory deployment is not enabled. An independently verified factory and Testnet approval are required.");
+    throw Error("Public Testnet V2 factory is not configured and independently verified.");
    const factory=getAddress(M4_FACTORY_ADDRESS);
    const owner=getAddress(validated.royaltyReceiver);
-   const [chainId,version,factoryOwner]=await Promise.all([
+   const [chainId,version,factoryCode]=await Promise.all([
     rpc.getChainId(),
     rpc.readContract({address:factory,abi:factoryAbi,functionName:"VERSION"}),
-    rpc.readContract({address:factory,abi:ownerAbi,functionName:"owner"})
+    rpc.getCode({address:factory})
    ]);
-   if(chainId!==18881||version!==3n||factoryOwner.toLowerCase()!==owner.toLowerCase())
-    throw Error("Configured factory is not the approved V3 contract controlled by this operator wallet.");
+   if(chainId!==18881||version!==2n||!factoryCode||factoryCode==="0x")
+    throw Error("A verified permissionless V2 factory on Ultra Testnet is required. Owner-only V3 cannot serve public creators.");
    const expected=validated.standard==="erc721"
     ? await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC721",
       args:[owner,validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
@@ -126,10 +116,10 @@ export default function CreateCollectionPage(){
     rpc.getCode({address:expected}),
     rpc.readContract({address:factory,abi:factoryAbi,functionName:"isCollection",args:[expected]})
    ]);
-   if(!code||code==="0x"||!registered)throw Error("Deployment transaction confirmed, but the predicted collection was not verified at the V3 factory.");
+   if(!code||code==="0x"||!registered)throw Error("Deployment confirmed, but public V2 factory registration was not verified.");
    setConfirmedAddress(expected);
    setManualAddress(expected);
-   setNotice("Collection deployment confirmed at "+expected+". Before publishing, register it with the approved NFT indexer after its confirmation window.");
+   setNotice("Collection deployment confirmed at "+expected+". Wait for 12 confirmations before listing the creator-owned collection.");
   }catch(e){setError(e instanceof Error?e.message:"Unable to confirm Ultra Testnet deployment.");}
   finally{setBusy(false);}
  }
