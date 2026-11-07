@@ -39,7 +39,7 @@ test("any connected Ultra EVM Testnet wallet can directly deploy ERC721 or ERC11
  assert.doesNotMatch(page,/M4_FACTORY_ADDRESS|M4_CANCUN_VERIFIED|M4_DEPLOY_ENABLED|deployAllowed/);
  assert.match(wallet,/submitDirectNFTDeployment/);
  assert.match(wallet,/submitCreatorReserveMint/);
- assert.match(exportScript,/evmVersion:"cancun"/);
+ assert.equal((exportScript.match(/evmVersion:"cancun"/g)||[]).length,2,"compiler target and emitted JSON artifact EVM version must agree");
  assert.match(exportScript,/Looke721Collection/);
  assert.match(exportScript,/Looke1155Collection/);
 });
