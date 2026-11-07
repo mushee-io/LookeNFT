@@ -5,6 +5,7 @@ import { getDb, inTransaction } from "@/lib/server/db";
 import { ApiError, apiFailure, guardMutation, noStore, parseBody } from "@/lib/server/http";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { validateCommunityCoverUrl } from "@/lib/server/community-cover";
+import { isSuccessfulDirectCreation } from "@/lib/testnet/direct-creation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,14 +45,17 @@ export async function POST(request: NextRequest) {
   const address=getAddress(body.address);
   const chain=await rpc.getChainId();
   if(chain!==18881)throw new ApiError(503,"RPC is not connected to Ultra EVM Testnet");
-  const receipt=await rpc.getTransactionReceipt({hash:body.txHash as `0x${string}`})
-   .catch(()=>{throw new ApiError(409,"Deployment transaction has not confirmed on Testnet");});
-  // Only direct EVM contract-creation transactions are accepted on this path.
-  // The receiving contract address is derived from the wallet's real transaction,
-  // not accepted from an unverified request body.
-  if(receipt.status!=="success"||receipt.from.toLowerCase()!==creator||
-     receipt.to!==null||!receipt.contractAddress||
-     receipt.contractAddress.toLowerCase()!==address.toLowerCase())
+  const hash=body.txHash as `0x${string}`;
+  const [receipt,transaction]=await Promise.all([
+   rpc.getTransactionReceipt({hash}),
+   rpc.getTransaction({hash})
+  ]).catch(()=>{throw new ApiError(409,"Deployment transaction has not confirmed on Testnet");});
+  // Ultra's receipt.to may be 0x000...000 for a successful CREATE.
+  // Verify transaction.to is null plus receipt contract address and creator.
+  if(!isSuccessfulDirectCreation(transaction,receipt)||
+     receipt.from.toLowerCase()!==creator||
+     transaction.from.toLowerCase()!==creator||
+     receipt.contractAddress!.toLowerCase()!==address.toLowerCase())
     throw new ApiError(409,"This wallet must have directly deployed the specified NFT contract");
   const head=await rpc.getBlockNumber();
   if(head<receipt.blockNumber)
