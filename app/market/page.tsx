@@ -62,9 +62,13 @@ export default function MarketplacePage(){
     const query=new URLSearchParams(window.location.search);
     const collection=query.get("collection")||"";
     const tokenId=query.get("tokenId")||"";
+    const price=query.get("price")||"";
     if(isAddress(collection,{strict:false})){
       const validTokenId=/^(0|[1-9][0-9]*)$/.test(tokenId)?tokenId:null;
-      setDraft(current=>({...current,collection,tokenId:validTokenId??current.tokenId}));
+      const validPrice=/^(?:0|[1-9][0-9]{0,3})(?:\\.[0-9]{1,18})?$/.test(price) && Number(price)>0 && Number(price)<=1000;
+      setDraft(current=>({...current,collection,tokenId:validTokenId??current.tokenId,
+        unitPriceUOS:validPrice?price:current.unitPriceUOS,
+        deadlineSeconds:current.deadlineSeconds||String(Math.floor(Date.now()/1000)+7*86400)}));
       setListingTarget({collection,tokenId:validTokenId});
       // The collection page deep-links directly to the seller form, not the market overview.
       window.requestAnimationFrame(()=>document.getElementById("seller-listing")?.scrollIntoView({block:"start"}));
