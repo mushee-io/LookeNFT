@@ -25,7 +25,7 @@ test("any connected Ultra EVM Testnet wallet can directly deploy ERC721 or ERC11
  assert.match(route,/requireSession\(request\)/); // listing requires signed ownership
  assert.match(route,/session\.chainId !== 18881/);
  assert.match(route,/receipt\.from\.toLowerCase\(\)!==creator/);
- assert.match(route,/receipt\.to!==null/);
+ assert.match(route,/isSuccessfulDirectCreation\(transaction,receipt\)/);
  assert.match(route,/receipt\.contractAddress\.toLowerCase\(\)!==address/);
  assert.match(route,/owner\.toLowerCase\(\)!==creator/);
  assert.match(route,/mint_enabled,published_at/);
