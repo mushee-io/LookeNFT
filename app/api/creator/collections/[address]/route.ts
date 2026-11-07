@@ -22,8 +22,8 @@ async function authorized(request:NextRequest,raw:string){
  if(session.chainId!==18881||!isAddress(raw,{strict:false}))
   throw new ApiError(403,"An authenticated Ultra EVM Testnet owner wallet is required");
  const address=getAddress(raw).toLowerCase();
- const row=await getDb().query<{status:string;operator_wallet:string}>(
-  "SELECT status,operator_wallet FROM looke_curated_collections WHERE chain_id=18881 AND contract_address=$1",
+ const row=await getDb().query<{status:string;operator_wallet:string;archived_at:Date|null}>(
+  "SELECT status,operator_wallet,archived_at FROM looke_curated_collections WHERE chain_id=18881 AND contract_address=$1",
   [address]);
  if(row.rowCount!==1)throw new ApiError(404,"Collection is not registered in LookeNFT");
  const [chain,owner,code]=await Promise.all([
@@ -33,7 +33,7 @@ async function authorized(request:NextRequest,raw:string){
  ]).catch(()=>{throw new ApiError(503,"Could not verify the current collection owner on Ultra Testnet");});
  if(chain!==18881||!code||code==="0x"||owner.toLowerCase()!==session.wallet.toLowerCase())
   throw new ApiError(403,"Only the current on-chain collection owner can manage this collection");
- return {address,owner:session.wallet.toLowerCase(),status:row.rows[0].status};
+ return {address,owner:session.wallet.toLowerCase(),status:row.rows[0].status,archivedAt:row.rows[0].archived_at};
 }
 
 export async function PATCH(request:NextRequest,{params}:{params:Promise<{address:string}>}){
@@ -42,6 +42,13 @@ export async function PATCH(request:NextRequest,{params}:{params:Promise<{addres
   const {address:raw}=await params;
   const user=await authorized(request,raw);
   const body=await parseBody(request,5000);
+  if(body.action==="restore"&&Object.keys(body).length===1){
+   const restored=await getDb().query(
+    "UPDATE looke_curated_collections SET archived_at=NULL,status='draft',mint_enabled=FALSE,operator_wallet=$2,updated_at=now() WHERE chain_id=18881 AND contract_address=$1 RETURNING status",
+    [user.address,user.owner]);
+   return noStore({restored:true,address:user.address,collection:restored.rows[0]});
+  }
+  if(user.archivedAt)throw new ApiError(409,"Restore this deleted Testnet collection before editing it");
   const allowed=["title","description","coverUrl","avatarUrl","status"];
   if(Object.keys(body).length===0||Object.keys(body).some(k=>!allowed.includes(k)))
    throw new ApiError(400,"Only title, description, banner, avatar and collection listing status can be changed");
@@ -79,11 +86,28 @@ export async function PATCH(request:NextRequest,{params}:{params:Promise<{addres
  }catch(error){return apiFailure(error);}
 }
 
+export async function DELETE(request:NextRequest,{params}:{params:Promise<{address:string}>}){
+ try{
+  guardMutation(request);
+  const {address:raw}=await params;
+  const user=await authorized(request,raw);
+  const body=await parseBody(request,1024);
+  if(Object.keys(body).length!==1||body.confirm!==user.address)
+   throw new ApiError(400,"Confirm this exact collection address to delete it from LookeNFT");
+  const result=await getDb().query(
+   "UPDATE looke_curated_collections SET archived_at=COALESCE(archived_at,now()),status='draft',mint_enabled=FALSE,operator_wallet=$2,updated_at=now() WHERE chain_id=18881 AND contract_address=$1 RETURNING archived_at",
+   [user.address,user.owner]);
+  return noStore({removedFromLookeNFT:true,archivedAt:result.rows[0].archived_at,address:user.address,
+   note:"Collection and NFTs remain deployed on Ultra EVM Testnet. No on-chain tokens were burned."});
+ }catch(error){return apiFailure(error);}
+}
+
 export async function POST(request:NextRequest,{params}:{params:Promise<{address:string}>}){
  try{
   guardMutation(request);
   const {address:raw}=await params;
   const user=await authorized(request,raw);
+  if(user.archivedAt)throw new ApiError(409,"Restore this deleted Testnet collection before syncing minting");
   const body=await parseBody(request,1024);
   if(body.action!=="sync-free-mint"||Object.keys(body).some(k=>!["action","phaseId"].includes(k)))
    throw new ApiError(400,"Only source-backed free mint synchronization is supported");

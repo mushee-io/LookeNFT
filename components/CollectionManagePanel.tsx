@@ -8,7 +8,7 @@ import {mintAbi,mintCallAbi} from "@/lib/m5/mint";
 
 type Drop={
  address:string;standard:"erc721"|"erc1155";title:string;description:string;
- coverUrl:string|null;avatarUrl:string|null;status:"draft"|"published";
+ coverUrl:string|null;avatarUrl:string|null;status:"draft"|"published";archived:boolean;
  phaseId:string;mintAvailable:boolean;mintEnabled:boolean;
 };
 const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
@@ -56,6 +56,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
  const [walletCap,setWalletCap]=useState("3");
  const [batchPhase,setBatchPhase]=useState<number|null>(null);
  const [show,setShow]=useState(false);
+ const [deleteConfirm,setDeleteConfirm]=useState("");
  async function inspect(){
   const address=collection.address as Address;
   const [chain,owner,paused,frozen,total,max,base,count,block]=await Promise.all([
@@ -119,6 +120,29 @@ export default function CollectionManagePanel({collection,onChanged}:{
       credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})}));
    onChanged({status,mintAvailable:status==="published"&&collection.mintAvailable});
    setNotice(status==="published"?"Your collection is listed on Explore.":"Collection hidden from public Explore. NFT ownership is unchanged.");
+  });
+ }
+ async function deleteFromLookeNFT(){
+  await run(async()=>{
+   if(!wallet.authenticated)throw Error("Sign in with your collection-owner wallet first.");
+   if(deleteConfirm!=="DELETE "+collection.title)
+    throw Error("Type DELETE "+collection.title+" to confirm removal.");
+   await json(await fetch("/api/creator/collections/"+collection.address,{
+    method:"DELETE",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({confirm:collection.address.toLowerCase()})}));
+   onChanged({archived:true,status:"draft",mintAvailable:false,mintEnabled:false});
+   setNotice("Collection removed from LookeNFT's public gallery. Contract, NFTs, transaction history and any previously opened mint phase still exist on Ultra Testnet.");
+  });
+ }
+ async function restoreFromLookeNFT(){
+  await run(async()=>{
+   if(!wallet.authenticated)throw Error("Sign in with the collection-owner wallet first.");
+   await json(await fetch("/api/creator/collections/"+collection.address,{
+    method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"restore"})}));
+   onChanged({archived:false,status:"draft",mintAvailable:false,mintEnabled:false});
+   setDeleteConfirm("");
+   setNotice("Collection restored as a private draft. You can publish it again when ready.");
   });
  }
  async function action(data:Hex,message:string){
@@ -277,6 +301,15 @@ export default function CollectionManagePanel({collection,onChanged}:{
   });
  }
 
+ if(collection.archived) return <section className="creator-publish-panel" style={{marginTop:28}}>
+  <h3>Collection removed from LookeNFT</h3>
+  <p>This collection is hidden from Explore and its gallery. Its contract, NFT ownership and transaction history still exist on Ultra EVM Testnet. Archiving does not pause an already-open mint phase.</p>
+  <button type="button" disabled={busy||!wallet.authenticated} onClick={()=>void restoreFromLookeNFT()}>Restore collection as private draft</button>
+  {!wallet.authenticated&&<button type="button" onClick={()=>void wallet.signIn()}>Sign in with owner wallet to restore</button>}
+  {error&&<p role="alert" className="operator-error">{error}</p>}
+  {notice&&<p role="status" className="operator-note">{notice}</p>}
+ </section>;
+
  return <section className="creator-publish-panel" style={{marginTop:28}}>
   <button type="button" className="creator-secondary" onClick={()=>setShow(s=>!s)}>
    {show?"Close Manage Collection":"Manage Collection · Owner"}
@@ -337,6 +370,16 @@ export default function CollectionManagePanel({collection,onChanged}:{
     <button type="button" disabled={busy||live.metadataFrozen} onClick={()=>void updateMetadata()}>
      Update NFT metadata on-chain (wallet approval)
     </button>
+   </div>
+   <div className="creator-delete-zone" style={{display:"grid",gap:10}}>
+    <h3>Delete Testnet collection from LookeNFT</h3>
+    <p>This hides the whole collection and its NFT gallery from LookeNFT's public Explore. It does not burn NFTs, delete the deployed smart contract, remove wallet ownership, or stop an already-open on-chain mint phase. You can restore it as a draft later.</p>
+    <label>Type DELETE {collection.title} to confirm
+     <input value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} autoComplete="off" />
+    </label>
+    <button type="button" className="creator-delete-button"
+     disabled={busy||!wallet.authenticated||deleteConfirm!=="DELETE "+collection.title}
+     onClick={()=>void deleteFromLookeNFT()}>Delete collection from LookeNFT</button>
    </div>
    {error&&<p role="alert" className="operator-error">{error}</p>}
    {notice&&<p role="status" className="operator-note">{notice}</p>}
