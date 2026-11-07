@@ -65,7 +65,7 @@ export default function MarketplacePage(){
     const price=query.get("price")||"";
     if(isAddress(collection,{strict:false})){
       const validTokenId=/^(0|[1-9][0-9]*)$/.test(tokenId)?tokenId:null;
-      const validPrice=/^(?:0|[1-9][0-9]{0,3})(?:\\.[0-9]{1,18})?$/.test(price) && Number(price)>0 && Number(price)<=1000;
+      const validPrice=/^(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{1,18})?$/.test(price) && Number(price)>0 && Number(price)<=1000;
       setDraft(current=>({...current,collection,tokenId:validTokenId??current.tokenId,
         unitPriceUOS:validPrice?price:current.unitPriceUOS,
         deadlineSeconds:current.deadlineSeconds||String(Math.floor(Date.now()/1000)+7*86400)}));
