@@ -40,7 +40,9 @@ test("only on-chain free/public mint phases can be activated",async()=>{
  assert.match(wallet,/price!==0n/);
  assert.match(wallet,/safeCreatorMintGas/);
  assert.match(curation,/rpc\.readContract/);
- assert.match(curation,/mintAvailable=!paused/);
+ assert.match(curation,/block.timestamp>=start&&block.timestamp<=end/);
+ assert.match(curation,/mintAvailable=true/);
+ assert.match(curation,/functionName:"phaseCount"/);
  assert.match(mint,/wallet\.submitFreePublicMint/);
  assert.match(mint,/PhaseMint/);
  assert.match(mint,/receipt\.status!=="success"/);
@@ -49,7 +51,10 @@ test("Public owner listing is separate from unverified NFT sale settlement",asyn
  const page=await readFile(new URL("../app/collection/[address]/page.tsx",import.meta.url),"utf8");
  const market=await readFile(new URL("../app/market/page.tsx",import.meta.url),"utf8");
  assert.match(page,/CollectionManagePanel/);
- assert.match(page,/List NFT for sale/);
+ assert.match(page,/NFTSaleEntry/);
+ const sale=await readFile(new URL("../components/NFTSaleEntry.tsx",import.meta.url),"utf8");
+ assert.match(sale,/List NFT for sale/);
+ assert.match(sale,/m7Gate\("list"\)/);
  assert.match(page,/Artwork unavailable/);
  assert.match(market,/query\.get\("collection"\)/);
  const schema=await readFile(new URL("../db/migrations/012_creator_collection_appearance.sql",import.meta.url),"utf8");
