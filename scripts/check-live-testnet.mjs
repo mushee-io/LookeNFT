@@ -27,6 +27,15 @@ try {
   if (typeof block?.hash !== "string" || !/^0x[0-9a-f]{64}$/i.test(block.hash))
     throw new Error("RPC block hash missing");
   Object.assign(outcome, { chainId, headBlock: height, comparedHeight, primaryBlockHash: block.hash });
+  const gasPriceHex = await rpc("eth_gasPrice");
+  const gasPriceWei = BigInt(gasPriceHex);
+  const baseFeeWei = block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null;
+  Object.assign(outcome, {
+    gasPriceWei:gasPriceWei.toString(),
+    gasPriceUosPerGas:(Number(gasPriceWei) / 1e18).toString(),
+    baseFeeWei:baseFeeWei?.toString() ?? null,
+    notes:"Read-only RPC network gas quote. No transaction or simulation was broadcast."
+  });
   const response = await fetch(outcome.explorer + "/api/v2/blocks/" + comparedHeight, {
     redirect: "error", signal: AbortSignal.timeout(12000)
   });
