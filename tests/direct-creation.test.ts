@@ -37,3 +37,16 @@ test("creator UI recovers existing signed deployment without sending another cre
  assert.match(registry,/isSuccessfulDirectCreation\(transaction,receipt\)/);
  assert.doesNotMatch(registry,/receipt\.to!==null/);
 });
+
+test("recovery restores on-chain ERC721 name, symbol, supply and base metadata URI",async()=>{
+ const page=await readFile(new URL("../app/create/page.tsx",import.meta.url),"utf8");
+ assert.match(page,/functionName:"baseTokenURI"/);
+ assert.match(page,/functionName:"maxSupply"/);
+ assert.match(page,/functionName:"name"/);
+ assert.match(page,/functionName:"symbol"/);
+ assert.match(page,/const changesImmutableContract=/);
+ assert.match(page,/if\(changesImmutableContract\)/);
+ assert.match(page,/setConfirmedAddress\(address\)/);
+ assert.match(page,/Mint NFT #1 to my wallet \(wallet approval\)/);
+ assert.match(page,/disabled=\{busy\|\|!eligible\|\|!!confirmedAddress\|\|!!txHash\}/);
+});
