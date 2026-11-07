@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
 import { makeCancunProbeCreationCode } from "@/lib/testnet/probe";
-import { safeCreatorDeploymentGas } from "@/lib/testnet/creator-gas";
+import { safeCreatorDeploymentGas, safeCreatorMintGas } from "@/lib/testnet/creator-gas";
 import { createPublicClient, decodeFunctionData, encodeFunctionData, http, isAddress, toFunctionSelector, toHex, verifyTypedData, type Address, type Hex } from "viem";
 import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
 import { M7_MARKET_ADDRESS,marketAbi,marketTypes,listingDomain,hashListing,m7Gate,type Listing } from "@/lib/m7/market";
@@ -432,10 +432,25 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     if(validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase() ||
        hexChain(chain)!==18881 || sequence.current!==revision)
       throw Error("Wallet or Testnet network changed before mint");
+    // Use Ultra's official RPC gas price, not a potentially broken MetaMask
+    // quote. No wallet prompt if the first mint simulation fails or costs too much.
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [rpcChain,estimatedGas,networkGasPrice]=await Promise.all([
+      rpc.getChainId(),
+      rpc.estimateGas({account:wallet as Address,to:collection as Address,data:calldata,value:0n}),
+      rpc.getGasPrice()
+    ]).catch((cause)=>{
+      throw new Error("Ultra Testnet could not safely estimate NFT mint gas: "+
+        (cause instanceof Error?cause.message:String(cause)));
+    });
+    if(rpcChain!==18881||sequence.current!==revision)
+      throw new Error("Testnet RPC or wallet changed during mint gas validation.");
+    const safe=safeCreatorMintGas(estimatedGas,networkGasPrice);
     setPending(true);
     try{
       const hash=await provider.request({method:"eth_sendTransaction",
-        params:[{from:wallet,to:collection,data:calldata,value:"0x0"}]});
+        params:[{from:wallet,to:collection,data:calldata,value:"0x0",
+          gas:toHex(safe.gasLimit),gasPrice:toHex(safe.gasPriceWei)}]});
       if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
         throw Error("Wallet returned invalid free mint transaction");
       return hash as Hex;
