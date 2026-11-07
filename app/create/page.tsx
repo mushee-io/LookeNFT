@@ -6,6 +6,7 @@ import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { previewMetadata } from "@/lib/m4/preview";
 import {validateCollectionDraft,type CollectionDraft} from "@/lib/m4/factory";
+import {isSuccessfulDirectCreation} from "@/lib/testnet/direct-creation";
 
 type Standard="erc721"|"erc1155";
 type Form={
@@ -65,6 +66,7 @@ export default function CreateCollectionPage(){
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  const [txHash,setTxHash]=useState<Hex|null>(null);
+ const [recoverHash,setRecoverHash]=useState("");
  const [confirmedAddress,setConfirmedAddress]=useState("");
  const [published,setPublished]=useState(false);
  const [mintedTxHash,setMintedTxHash]=useState<Hex|null>(null);
@@ -76,6 +78,10 @@ export default function CreateCollectionPage(){
   const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
  },[]);
  useEffect(()=>()=>{if(localArtwork)URL.revokeObjectURL(localArtwork);},[localArtwork]);
+ useEffect(()=>{
+  const supplied=new URLSearchParams(window.location.search).get("recover");
+  if(supplied&&/^0x[0-9a-fA-F]{64}$/.test(supplied))setRecoverHash(supplied);
+ },[]);
  const eligible=wallet.chainId===18881 && !!wallet.address;
  const canList=eligible && wallet.authenticated;
 
@@ -87,6 +93,49 @@ export default function CreateCollectionPage(){
   event.preventDefault();setError("");setNotice("");
   try{previewMetadata(form,Boolean(localArtwork));setStage("preview");window.scrollTo({top:0,behavior:"smooth"});}
   catch(e){setError(e instanceof Error?e.message:"Invalid collection settings.");}
+ }
+ async function verifyExistingDeployment(hash:Hex){
+  const [chain,receipt,transaction]=await Promise.all([
+    rpc.getChainId(),
+    rpc.getTransactionReceipt({hash}),
+    rpc.getTransaction({hash})
+  ]);
+  if(chain!==18881)throw Error("Only Ultra EVM Testnet deployments can be recovered.");
+  // Ultra's receipt.to is the ZERO ADDRESS for valid contract creations.
+  // transaction.to is null and receipt.contractAddress holds the real contract.
+  if(!isSuccessfulDirectCreation(transaction,receipt))
+    throw Error(receipt.status==="reverted"
+      ?"This deployment failed on-chain. No NFT contract was created."
+      :"The transaction is not a successful direct NFT contract deployment.");
+  if(!wallet.address||transaction.from.toLowerCase()!==wallet.address.toLowerCase()||
+     receipt.from.toLowerCase()!==wallet.address.toLowerCase())
+    throw Error("Connect the wallet that signed this NFT deployment: "+transaction.from);
+  const address=receipt.contractAddress!;
+  const [code,owner,is721,is1155]=await Promise.all([
+    rpc.getCode({address}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"owner"}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"supportsInterface",args:["0x80ac58cd"]}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"supportsInterface",args:["0xd9b67a26"]})
+  ]);
+  if(!code||code==="0x"||owner.toLowerCase()!==wallet.address.toLowerCase()||(!is721&&!is1155))
+    throw Error("The transaction succeeded, but deployed NFT bytecode, ownership or interface could not be verified.");
+  const standard:Standard=is721?"erc721":"erc1155";
+  setForm(old=>({...old,standard}));
+  setConfirmedAddress(address);
+  setTxHash(hash);
+  setRecoverHash(hash);
+  setNotice("Your existing "+standard.toUpperCase()+" contract is confirmed on Ultra EVM Testnet. Do not redeploy it. You can mint NFT #1 with your wallet.");
+  return address;
+ }
+ async function recoverDeployment(){
+  if(!eligible){setError("Connect the original Ultra EVM Testnet creator wallet first.");return;}
+  if(!/^0x[0-9a-fA-F]{64}$/.test(recoverHash)){
+    setError("Enter the 66-character transaction hash from your original deployment.");return;
+  }
+  setBusy(true);setError("");setNotice("");
+  try{await verifyExistingDeployment(recoverHash as Hex);}
+  catch(e){setError(e instanceof Error?e.message:"Existing deployment verification failed.");}
+  finally{setBusy(false);}
  }
  async function deploy(){
   if(!eligible){setError("Connect your wallet to Ultra EVM Testnet to create an NFT.");return;}
@@ -111,21 +160,10 @@ export default function CreateCollectionPage(){
     :encodeDeployData({abi:erc1155Constructor,bytecode,args:[validated.uri,validated.totalCap,validated.perIdCap,owner,owner,BigInt(validated.royaltyBps)]});
    const tx=await wallet.submitDirectNFTDeployment(calldata);
    setTxHash(tx);
+   setRecoverHash(tx);
    setNotice("Creation submitted from your wallet. Confirming your NFT contract on Ultra EVM Testnet.");
-   const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
-   if(receipt.status!=="success"||receipt.to!==null||!receipt.contractAddress)
-    throw Error("The creation transaction did not deploy an NFT contract.");
-   const address=receipt.contractAddress;
-   const [code,ownedBy,supported]=await Promise.all([
-    rpc.getCode({address}),
-    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"owner"}),
-    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"supportsInterface",
-      args:[validated.standard==="erc721"?"0x80ac58cd":"0xd9b67a26"]})
-   ]);
-   if(!code||code==="0x"||ownedBy.toLowerCase()!==owner.toLowerCase()||!supported)
-    throw Error("Your transaction confirmed but NFT owner or interface verification failed.");
-   setConfirmedAddress(address);
-   setNotice("Your NFT collection is deployed on Ultra EVM Testnet. You own it. Mint an NFT below or list it in LookeNFT.");
+   await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
+   await verifyExistingDeployment(tx);
   }catch(e){setError(e instanceof Error?e.message:"Unable to deploy Testnet NFT.");}
   finally{setBusy(false);}
  }
@@ -184,6 +222,20 @@ export default function CreateCollectionPage(){
   </div>
   <p>Anyone can deploy an NFT directly from their wallet on Ultra EVM Testnet. No LookeNFT admin key or creation fee. Only ordinary Testnet gas is needed; every transaction requires your wallet approval.</p>
   {!eligible&&<p className="operator-note"><strong>Connect any wallet to Ultra EVM Testnet to deploy.</strong> Sign in only if you want to list the collection in LookeNFT.</p>}
+  <div className="creator-publish-panel">
+   <h2>Already deployed? Recover your NFT contract</h2>
+   <p>If Ultra confirmed your transaction but LookeNFT showed an error, verify your existing contract here. This is read-only and costs no gas. Do not redeploy.</p>
+   <label>Existing deployment transaction hash
+    <input value={recoverHash} onChange={e=>setRecoverHash(e.target.value.trim())}
+     placeholder="0x… your original NFT deployment transaction" spellCheck={false} />
+   </label>
+   <button type="button" disabled={busy||!eligible||!/^0x[0-9a-fA-F]{64}$/.test(recoverHash)}
+    onClick={()=>void recoverDeployment()}>{busy?"Checking existing transaction…":"Recover existing deployment (no gas)"}</button>
+   {!eligible&&<p className="operator-note">Connect the same Ultra EVM Testnet wallet used for the original deployment.</p>}
+   {confirmedAddress&&<p className="creator-break">Verified existing NFT contract: <strong>{confirmedAddress}</strong></p>}
+   {confirmedAddress&&<button type="button" disabled={busy||!!mintedTxHash}
+    onClick={()=>void mintFirstNFT()}>{mintedTxHash?"NFT #1 minted ✓":"Mint NFT #1 to my wallet (wallet approval)"}</button>}
+  </div>
   {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
    <div className="creator-fields">
     <label>Collection name<input required maxLength={90} value={form.name} onChange={e=>put("name",e.target.value)} placeholder="Ultra Punks"/></label>
