@@ -60,7 +60,7 @@ try {
     const [code, owner, erc721]=await Promise.all([
       rpc("eth_getCode",[collection,"latest"]).catch(()=>null),
       rpc("eth_call",[{to:collection,data:"0x8da5cb5b"},"latest"]).catch(()=>null),
-      rpc("eth_call",[{to:collection,data:"0x01ffc9a7"+"80ac58cd".padStart(64,"0")},"latest"]).catch(()=>null)
+      rpc("eth_call",[{to:collection,data:"0x01ffc9a7"+"80ac58cd".padEnd(64,"0")},"latest"]).catch(()=>null)
     ]);
     outcome.penguinDeploymentDiagnostic.bytecodeLength=typeof code==="string"?(code.length-2)/2:null;
     outcome.penguinDeploymentDiagnostic.owner=typeof owner==="string"&&owner.length>=42?"0x"+owner.slice(-40):null;
