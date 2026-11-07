@@ -144,16 +144,14 @@ export default function CreateCollectionPage(){
  const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
  return <section className="operator-page operator-create-page">
   <Link className="curated-back" href="/explore">← NFT collections</Link>
-  <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
+  <p className="curated-overline">COMMUNITY NFT STUDIO · ULTRA EVM TESTNET</p>
   <h1>Create an NFT collection</h1>
   <div className="gen-studio-link">
     <div><strong>Want 10,000 different characters?</strong><p>Upload transparent face, hair, eyes and accessory layers; choose rarity weights; generate unique NFT artwork and metadata.</p></div>
     <Link className="gen-studio-open" href="/create/generative">Open Generative Art Studio ↗</Link>
   </div>
-  <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Drafts do not mint, deploy or charge anyone; real publishing is operator-only.</p>
-  {authorised===false&&<p className="operator-note"><strong>Design preview mode.</strong> Upload artwork, create a local preview, and inspect generated metadata without signing in. Only the configured operator wallet can deploy or publish a genuine NFT collection.</p>}
-  {authorised===null&&<p className="operator-note">Checking publisher permissions; local previews are available immediately.</p>}
-  <div className="creator-steps" aria-label="Creation stages"><span className={stage==="edit"?"active":""}>1. Collection details</span><span className={stage==="preview"?"active":""}>2. Preview</span><span>3. Publish to market</span></div>
+  <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Draft previews never mint or charge anyone. Any signed-in Ultra EVM Testnet wallet can deploy and list a collection once the public factory is verified.</p>
+  {!eligible&&<p className="operator-note"><strong>Connect a Testnet wallet to deploy.</strong> Anyone can create an NFT collection; no LookeNFT admin key is required. Local previews are available without a wallet.</p>}
   {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
    <div className="creator-fields">
     <label>Collection name<input required maxLength={90} value={form.name} onChange={e=>put("name",e.target.value)} placeholder="Ultra Punks"/></label>
@@ -183,7 +181,7 @@ export default function CreateCollectionPage(){
     <label className="creator-wide">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={e=>put("description",e.target.value)} placeholder="Tell collectors about this drop…"/></label>
      <label className="creator-wide">Traits (optional, one Name: Value per line)<textarea rows={4} value={form.traits} onChange={e=>put("traits",e.target.value)} placeholder="Background: Pink"/></label>
    </div>
-   <p className="operator-note"><strong>10,000 supply preselected.</strong> One image + ERC-1155 means 10,000 copies of an edition, not 10,000 unique artworks. Unique ERC-721 imagery and rarity require real image layers and metadata. Local preview files are not uploaded. On-chain publishing needs verified hosted metadata and operator authorization.</p>
+   <p className="operator-note"><strong>Preview is not a deployment.</strong> Choose ERC-721 for unique art or ERC-1155 for editions. Images selected here are only local previews. Hosted metadata and explicit wallet approval are required for a real Testnet transaction.</p>
    <button type="submit">Preview collection →</button>
   </form>:<>
    <div className="creator-preview">
@@ -199,28 +197,22 @@ export default function CreateCollectionPage(){
      <button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(design?.metadata,null,2));}}>Copy example metadata JSON</button>
     </div>
     <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
-   {authorised===true?<div className="creator-publish-panel">
-    <h2>Deploy to Ultra Testnet</h2>
-    <p>Only your authorised wallet can approve a transaction from the owner-only V3 factory. NFT creation on Ultra is a separate blockchain transaction, not the same as publishing a catalogue card.</p>
-    <button type="button" disabled={busy||!deployAllowed||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
-    {!deployAllowed&&<p className="operator-note">On-chain deployment is currently locked until the V3 factory is deployed and verified and the independent M4 security gates are enabled. The editor and preview remain available.</p>}
+   <div className="creator-publish-panel">
+    <h2>Deploy to Ultra EVM Testnet</h2>
+    <p>Any signed-in Ultra Testnet wallet can create its own NFT collection. Your wallet approves the transaction and owns the collection; no LookeNFT admin key is needed.</p>
+    <button type="button" disabled={busy||!eligible||!deployAllowed||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
+    {!eligible&&<p className="operator-note">Connect and sign in with your Testnet wallet to deploy.</p>}
+    {!deployAllowed&&<p className="operator-note">Live deployment awaits a verified permissionless V2 factory, Cancun Testnet compatibility evidence and deployment configuration. Preview is available now.</p>}
     {txHash&&<p className="creator-break">Transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a></p>}
     {confirmedAddress&&<p className="creator-break">Verified collection address: <strong>{confirmedAddress}</strong></p>}
-   </div>:<div className="creator-publish-panel">
-    <h2>Publishing requires the LookeNFT admin wallet</h2>
-    <p>Your 10,000-edition artwork and metadata preview are ready locally. Publishing a collection needs your complete authorized wallet address, a verified Ultra contract and hosted metadata.</p>
-    {wallet.address&&<button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(wallet.address||"");}}>Copy my full connected wallet address</button>}
-    <p><button type="button" disabled>Publish to Ultra (operator access required)</button></p>
-    <p className="operator-note">This test preview does not broadcast a transaction, mint NFTs, or publish anything to mainnet.</p>
-   </div>}
-   {authorised===true&&<div className="creator-publish-panel">
-    <h2>Publish official preview to the market</h2>
-    <p>After deployment and 12 Testnet confirmations, this tool verifies your factory event and indexer record before publishing the collection preview to the gallery. Already registered collections can also be entered below. Minting stays disabled.</p>
-    <label>Verified collection contract address<input value={confirmedAddress||manualAddress} onChange={e=>{setManualAddress(e.target.value);setPublished(false);}} placeholder="0x…"/></label>
-    <button type="button" disabled={busy||published||!(confirmedAddress||manualAddress)} onClick={()=>void publishCollection()}>{published?"Published ✓":busy?"Publishing…":"Publish to LookeNFT market"}</button>
-    {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent((confirmedAddress||manualAddress).trim())}>Open public collection preview ↗</Link></p>}
-    <p className="operator-note">Minting remains closed until a valid priced phase is scheduled on-chain and M5/M12 financial execution has been independently approved. The price above is not a live on-chain quote.</p>
-   </div>}
+   </div>
+   <div className="creator-publish-panel">
+    <h2>List your verified Testnet collection</h2>
+    <p>After 12 Testnet confirmations, LookeNFT verifies the factory event, collection owner, deployed bytecode and NFT standard before listing. Minting remains disabled.</p>
+    <button type="button" disabled={busy||published||!eligible||!txHash||!confirmedAddress} onClick={()=>void publishCollection()}>{published?"Listed ✓":busy?"Checking…":"List Testnet collection"}</button>
+    {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent(confirmedAddress)}>Open collection preview ↗</Link></p>}
+    <p className="operator-note">This self-service flow does not unlock mint phases, trading or mainnet deployment. Every deployment requires the creator's explicit wallet approval.</p>
+   </div>
   </>}
   {notice&&<p role="status" className="operator-note">{notice}</p>}
   {error&&<p role="alert" className="operator-error">{error}</p>}
