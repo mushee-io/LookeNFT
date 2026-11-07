@@ -95,33 +95,54 @@ export async function curatedCollections(publicOnly=true, address?:string): Prom
      ORDER BY c.published_at DESC NULLS LAST,c.created_at DESC LIMIT 100`,
     [publicOnly,address||null]
   );
-  // Creator-opened FREE phases use the actual NFT contract, not the legacy
-  // operator factory/M12 launch gate. Paid phases still remain off.
+  // Self-serve Ultra Testnet minting is governed by the creator-owned contract,
+  // not by stale operator/database enable flags. Only zero-price public phases.
   const freeAbi=parseAbi([
     "function paused() view returns (bool)",
+    "function phaseCount() view returns (uint256)",
+    "function totalMinted() view returns (uint256)",
+    "function maxSupply() view returns (uint256)",
+    "function maxTotalMinted() view returns (uint256)",
     "function mintPhases(uint256) view returns (uint64 start,uint64 end,uint96 unitPrice,uint32 walletCap,uint32 phaseCap,uint32 minted,bytes32 merkleRoot,bool cancelled)"
   ]);
-  const block=r.rows.some(x=>x.mint_enabled && x.status==="published")
-    ?await rpc.getBlock({blockTag:"latest"}).catch(()=>null):null;
+  const block=r.rows.length?await rpc.getBlock({blockTag:"latest"}).catch(()=>null):null;
   return Promise.all(r.rows.map(async x=>{
     let mintAvailable=false;
-    if(block&&x.mint_enabled&&x.status==="published"){
+    let phaseId=x.mint_phase_id;
+    if(block){
       try{
         const address=x.contract_address as Address;
-        const [paused,phase]=await Promise.all([
+        const [paused,count,total,max]=await Promise.all([
           rpc.readContract({address,abi:freeAbi,functionName:"paused",blockNumber:block.number}),
-          rpc.readContract({address,abi:freeAbi,functionName:"mintPhases",args:[BigInt(x.mint_phase_id)],blockNumber:block.number})
+          rpc.readContract({address,abi:freeAbi,functionName:"phaseCount",blockNumber:block.number}),
+          rpc.readContract({address,abi:freeAbi,functionName:"totalMinted",blockNumber:block.number}),
+          rpc.readContract({address,abi:freeAbi,
+            functionName:x.token_standard==="erc721"?"maxSupply":"maxTotalMinted",
+            blockNumber:block.number})
         ]);
-        const [start,end,price,walletCap,cap,minted,root,cancelled]=phase;
-        mintAvailable=!paused&&!cancelled&&price===0n&&root==="0x"+"0".repeat(64)&&
-          walletCap>0&&cap>minted&&block.timestamp>=start&&block.timestamp<=end;
+        if(!paused&&total<max){
+          // Search recent phases first, then the indexed phase if it is older.
+          const ids:number[]=[];
+          for(let id=Number(count);id>0&&id>Number(count)-10;id--)ids.push(id);
+          const saved=Number(x.mint_phase_id);
+          if(saved>0&&saved<=Number(count)&&!ids.includes(saved))ids.push(saved);
+          for(const id of ids){
+            const [start,end,price,walletCap,cap,minted,root,cancelled]=await rpc.readContract({
+              address,abi:freeAbi,functionName:"mintPhases",args:[BigInt(id)],blockNumber:block.number
+            });
+            if(!cancelled&&price===0n&&root==="0x"+"0".repeat(64)&&
+              walletCap>0&&cap>minted&&block.timestamp>=start&&block.timestamp<=end){
+              mintAvailable=true;phaseId=String(id);break;
+            }
+          }
+        }
       }catch{mintAvailable=false;}
     }
     return {
       address:x.contract_address,standard:x.token_standard,title:x.title,
       description:x.description,coverUrl:x.cover_url,avatarUrl:x.avatar_url,
-      creatorWallet:x.operator_wallet,phaseId:x.mint_phase_id,
-      status:x.status,mintEnabled:x.mint_enabled,mintAvailable,
+      creatorWallet:x.operator_wallet,phaseId,
+      status:x.status,mintEnabled:mintAvailable,mintAvailable,
       publishedAt:x.published_at?.toISOString()||null
     };
   }));
