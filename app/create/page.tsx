@@ -93,13 +93,17 @@ export default function CreateCollectionPage(){
   setError("");setNotice("");setBusy(true);
   try{
    const {validated}=inspect(form,wallet.address,salt);
-   const filename=validated.standard==="erc721"?"create-erc721.json":"create-erc1155.json";
-   const response=await fetch("/contracts/"+filename,{cache:"force-cache"});
-   if(!response.ok)throw Error("NFT creation bytecode is not available in this website build.");
+   // A versioned path and no-store are essential: the previous force-cache
+   // could return Cancun bytecode from an older deployment after an update.
+   const filename=validated.standard==="erc721"?"create-erc721-paris-v1.json":"create-erc1155-paris-v1.json";
+   const response=await fetch("/contracts/"+filename,{cache:"no-store"});
+   if(!response.ok)throw Error("NFT contract artifact unavailable (HTTP "+response.status+"). Reload LookeNFT and try again.");
    const artifact=await response.json() as {standard?:string;chainId?:number;evmVersion?:string;bytecode?:string};
-   if(artifact.chainId!==18881||artifact.standard!==validated.standard||
-      artifact.evmVersion!=="paris"||!/^0x[0-9a-fA-F]{200,500000}$/.test(artifact.bytecode||""))
-     throw Error("Invalid Ultra Testnet NFT contract artifact.");
+   if(artifact.chainId!==18881)throw Error("NFT bytecode chain mismatch: expected Ultra Testnet 18881, got "+String(artifact.chainId));
+   if(artifact.standard!==validated.standard)throw Error("NFT bytecode standard mismatch: expected "+validated.standard+", got "+String(artifact.standard));
+   if(artifact.evmVersion!=="paris")throw Error("Stale NFT bytecode: expected Paris, got "+String(artifact.evmVersion)+". Refresh the page.");
+   if(!/^0x[0-9a-fA-F]{200,500000}$/.test(artifact.bytecode||""))
+     throw Error("Invalid NFT contract bytecode: expected complete deployment hex data.");
    const owner=getAddress(wallet.address!);
    const bytecode=artifact.bytecode as Hex;
    const calldata=validated.standard==="erc721"
