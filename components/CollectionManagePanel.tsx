@@ -129,7 +129,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
  }
  async function updateMetadata(){
   await run(async()=>{
-   if(live.metadataFrozen)throw Error("This NFT contract has frozen metadata; token images can no longer change.");
+   if(!live||live.metadataFrozen)throw Error("Metadata is unavailable or frozen; token images cannot be changed.");
    const uri=metadata.trim();
    if(!uri.startsWith("ipfs://")||!uri.endsWith("/"))
     throw Error("Enter the NEW Pinata metadata folder URI, for example ipfs://NEW_CID/. Not the image ZIP URL.");
