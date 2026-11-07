@@ -36,6 +36,25 @@ try {
     baseFeeWei:baseFeeWei?.toString() ?? null,
     notes:"Read-only RPC network gas quote. No transaction or simulation was broadcast."
   });
+  // One-time read-only investigation of a user-submitted Testnet deployment.
+  // This is public blockchain data; it does not sign, send, or retry anything.
+  const submittedHash = "0x320af6b0bc91d3ed56fae11f6129265e038adf77019e7f056c643f07f3d56c67";
+  const receiptResult = await rpc("eth_getTransactionReceipt", [submittedHash]).catch(e=>null);
+  const txResult = await rpc("eth_getTransactionByHash", [submittedHash]).catch(e=>null);
+  outcome.penguinDeploymentDiagnostic = {
+    hash:submittedHash,
+    found:Boolean(receiptResult),
+    receiptStatus:receiptResult?.status ?? null,
+    receiptTo:receiptResult?.to ?? null,
+    contractAddress:receiptResult?.contractAddress ?? null,
+    receiptGasUsed:receiptResult?.gasUsed ?? null,
+    transactionGas:txResult?.gas ?? null,
+    txTo:txResult?.to ?? null,
+    transactionBlockNumber:txResult?.blockNumber ?? null,
+    transactionInputBytes:typeof txResult?.input==="string"?(txResult.input.length-2)/2:null,
+    note:"Read-only Ultra Testnet public transaction diagnostic. Not an approval or new transaction."
+  };
+  console.log("PENGUIN_DEPLOYMENT_DIAGNOSTIC "+JSON.stringify(outcome.penguinDeploymentDiagnostic));
   const response = await fetch(outcome.explorer + "/api/v2/blocks/" + comparedHeight, {
     redirect: "error", signal: AbortSignal.timeout(12000)
   });
