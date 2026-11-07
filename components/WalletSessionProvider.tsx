@@ -28,6 +28,8 @@ type WalletContextValue = {
   disconnect: () => Promise<void>;
   unlinkProfile: () => Promise<void>;
   submitTestnetProbe: () => Promise<Hex>;
+  submitDirectNFTDeployment: (creationData: Hex) => Promise<Hex>;
+  submitCreatorReserveMint: (collection: string, calldata: Hex) => Promise<Hex>;
   submitFactoryDeployment: (factoryAddress: string, calldata: Hex) => Promise<Hex>;
   submitMint: (collection: string, calldata: Hex, valueWei: bigint) => Promise<Hex>;
   signMarketListing: (listing: Listing) => Promise<Hex>;
@@ -355,6 +357,68 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
       });
       if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
         throw Error("Wallet did not return a canonical Testnet transaction hash");
+      return hash as Hex;
+    }finally{setPending(false);}
+  }
+
+  /**
+   * Public creator actions: deployment and free creator-reserve mint only.
+   * No platform operator key, no backend private key, no UOS payment.
+   * The wallet must explicitly approve each Testnet transaction.
+   */
+  async function submitDirectNFTDeployment(creationData: Hex): Promise<Hex> {
+    if (ACTIVE_NETWORK.chainId !== 18881)
+      throw Error("NFT creation is restricted to Ultra EVM Testnet");
+    if (!/^0x[0-9a-fA-F]{200,500000}$/.test(creationData))
+      throw Error("Invalid NFT creation bytecode");
+    const provider=providerRef.current,wallet=address,revision=sequence.current;
+    if(!provider||!wallet||pending)throw Error("Connect your Testnet wallet to create an NFT");
+    const [accounts,chain]=await Promise.all([
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"})
+    ]);
+    if(validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase() ||
+       hexChain(chain)!==18881 || sequence.current!==revision)
+      throw Error("Wallet or Ultra Testnet network changed; reconnect and retry");
+    setPending(true);
+    try {
+      const hash=await provider.request({
+        method:"eth_sendTransaction",
+        params:[{from:wallet,data:creationData,value:"0x0"}]
+      });
+      if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
+        throw Error("Wallet returned an invalid NFT deployment transaction");
+      return hash as Hex;
+    }finally{setPending(false);}
+  }
+
+  async function submitCreatorReserveMint(collection: string, calldata: Hex): Promise<Hex> {
+    if (ACTIVE_NETWORK.chainId !== 18881 || !isAddress(collection,{strict:false}))
+      throw Error("Creator reserve mint is Ultra EVM Testnet-only");
+    const allowedAbi=[
+      {type:"function",name:"mintReserved",stateMutability:"nonpayable",
+       inputs:[{name:"recipient",type:"address"}],outputs:[{name:"tokenId",type:"uint256"}]},
+      {type:"function",name:"mintReserved",stateMutability:"nonpayable",
+       inputs:[{name:"recipient",type:"address"},{name:"tokenId",type:"uint256"},{name:"quantity",type:"uint256"}],outputs:[]}
+    ] as const;
+    const decoded=decodeFunctionData({abi:allowedAbi,data:calldata});
+    const provider=providerRef.current,wallet=address,revision=sequence.current;
+    if(!provider||!wallet||pending)throw Error("Connect your Testnet wallet to mint");
+    if(decoded.functionName!=="mintReserved" ||
+       decoded.args[0]?.toLowerCase()!==wallet.toLowerCase() ||
+       (decoded.args.length===3 && (decoded.args[1]!==1n||decoded.args[2]!==1n)))
+      throw Error("Only a free self-mint to your own wallet is supported");
+    const [accounts,chain]=await Promise.all([
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"})
+    ]);
+    if(validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase() ||
+       hexChain(chain)!==18881 || sequence.current!==revision)
+      throw Error("Wallet or Testnet network changed before mint");
+    setPending(true);
+    try{
+      const hash=await provider.request({method:"eth_sendTransaction",
+        params:[{from:wallet,to:collection,data:calldata,value:"0x0"}]});
+      if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
+        throw Error("Wallet returned invalid free mint transaction");
       return hash as Hex;
     }finally{setPending(false);}
   }
@@ -749,7 +813,7 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, submitTestnetProbe, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitTestnetProbe, submitDirectNFTDeployment, submitCreatorReserveMint, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>
