@@ -39,7 +39,8 @@
     "m11:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts",
     "test:m12": "node --import tsx --test tests/m12.test.ts tests/m12.integration.test.ts",
     "m12:source-check": "tsx scripts/m12-readonly-source-check.ts",
-    "m12:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts"
+    "m12:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts",
+    "prebuild": "node scripts/export-direct-nft-artifacts.cjs"
   },
   "dependencies": {
     "next": "16.4.5",
