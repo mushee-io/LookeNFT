@@ -15,7 +15,7 @@ test("Prevent the MetaMask million-UOS gas quote",()=>{
   assert.throws(()=>safeCreatorDeploymentGas(4_617_948n,0n),/abnormally high gas price/);
 });
 test("Refuse excessive cost or suspicious gas estimation even on Testnet",()=>{
-  assert.throws(()=>safeCreatorDeploymentGas(11_000_000n,10_000_000_000_000n),/50 UOS safety limit/);
+  assert.throws(()=>safeCreatorDeploymentGas(5_000_000n,10_000_000_000_000n),/50 UOS safety limit/);
   assert.throws(()=>safeCreatorDeploymentGas(20_999n,1_500_000_000_000n),/invalid or excessively large/);
   assert.throws(()=>safeCreatorDeploymentGas(30_000_000n,1_500_000_000_000n),/invalid or excessively large/);
 });
