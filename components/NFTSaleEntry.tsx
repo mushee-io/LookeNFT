@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState } from "react";
-import Link from "next/link";
 import { m7Gate } from "@/lib/m7/market";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 
@@ -19,7 +18,7 @@ export default function NFTSaleEntry({
     collection, tokenId, price
   }).toString() + "#seller-listing";
   return <div className="nft-sale-entry">
-    <button type="button" className="curated-sale-action" aria-expanded={open}
+    <button type="button" className="curated-sale-action" style={{border:0,background:"#fa4f9b",color:"#160b16",padding:"8px 10px",borderRadius:8,cursor:"pointer",fontWeight:700}} aria-expanded={open}
       aria-controls={id} onClick={() => setOpen(v => !v)}>
       {open ? "Close sale form −" : "List NFT for sale ↗"}
     </button>
@@ -42,9 +41,9 @@ export default function NFTSaleEntry({
         <strong>Live listing unavailable:</strong> {reason}. You can review sale terms, but signing and publishing an actual sell order are disabled until the Testnet marketplace is verified.
       </p>}
       <p style={{margin:0,fontSize:12}}>No NFT is transferred or listed simply by opening this form.</p>
-      {validPrice && <Link className="secondary-link" href={target} prefetch={false}>
+      {validPrice && <a className="secondary-link" href={target}>
         {reason ? "Review sale terms (preview only) →" : "Continue to wallet-verified seller form →"}
-      </Link>}
+      </a>}
     </div>}
   </div>;
 }
