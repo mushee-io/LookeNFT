@@ -20,7 +20,11 @@ test("owner batch mint is guarded by Ultra EVM on-chain supply, wallet caps and 
 test("individual NFT listing deep-links into a seller form and explains gated trading",async()=>{
  const page=await readFile(new URL("../app/collection/[address]/page.tsx",import.meta.url),"utf8");
  const market=await readFile(new URL("../app/market/page.tsx",import.meta.url),"utf8");
- assert.match(page,/tokenId=.*seller-listing/);
+ assert.match(page,/<NFTSaleEntry/);
+ const entry=await readFile(new URL("../components/NFTSaleEntry.tsx",import.meta.url),"utf8");
+ assert.match(entry,/#seller-listing/);
+ assert.match(entry,/new URLSearchParams/);
+ assert.match(entry,/Live listings are not available yet/);
  assert.match(market,/listingTarget/);
  assert.match(market,/id="seller-listing"/);
  assert.match(market,/Sales are not yet enabled/);
