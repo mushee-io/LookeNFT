@@ -178,8 +178,8 @@ export default function CreateCollectionPage(){
     <div><strong>Want 10,000 different characters?</strong><p>Upload transparent face, hair, eyes and accessory layers; choose rarity weights; generate unique NFT artwork and metadata.</p></div>
     <Link className="gen-studio-open" href="/create/generative">Open Generative Art Studio ↗</Link>
   </div>
-  <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Draft previews never mint or charge anyone. Any signed-in Ultra EVM Testnet wallet can deploy and list a collection once the public factory is verified.</p>
-  {!eligible&&<p className="operator-note"><strong>Connect a Testnet wallet to deploy.</strong> Anyone can create an NFT collection; no LookeNFT admin key is required. Local previews are available without a wallet.</p>}
+  <p>Anyone can deploy an NFT directly from their wallet on Ultra EVM Testnet. No LookeNFT admin key or creation fee. Only ordinary Testnet gas is needed; every transaction requires your wallet approval.</p>
+  {!eligible&&<p className="operator-note"><strong>Connect any wallet to Ultra EVM Testnet to deploy.</strong> Sign in only if you want to list the collection in LookeNFT.</p>}
   {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
    <div className="creator-fields">
     <label>Collection name<input required maxLength={90} value={form.name} onChange={e=>put("name",e.target.value)} placeholder="Ultra Punks"/></label>
@@ -226,20 +226,24 @@ export default function CreateCollectionPage(){
     </div>
     <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
    <div className="creator-publish-panel">
-    <h2>Deploy to Ultra EVM Testnet</h2>
-    <p>Any signed-in Ultra Testnet wallet can create its own NFT collection. Your wallet approves the transaction and owns the collection; no LookeNFT admin key is needed.</p>
-    <button type="button" disabled={busy||!eligible||!deployAllowed||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
-    {!eligible&&<p className="operator-note">Connect and sign in with your Testnet wallet to deploy.</p>}
-    {!deployAllowed&&<p className="operator-note">Live deployment awaits a verified permissionless V2 factory, Cancun Testnet compatibility evidence and deployment configuration. Preview is available now.</p>}
+    <h2>Create your NFT on Ultra EVM Testnet</h2>
+    <p>Open to every Testnet wallet. Deploy your own ERC-721 or ERC-1155 contract without a factory, an admin key, or a LookeNFT creation fee.</p>
+    <button type="button" disabled={busy||!eligible||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
+    {!eligible&&<p className="operator-note">Connect any wallet on Ultra EVM Testnet to create an NFT.</p>}
     {txHash&&<p className="creator-break">Transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a></p>}
-    {confirmedAddress&&<p className="creator-break">Verified collection address: <strong>{confirmedAddress}</strong></p>}
+    {confirmedAddress&&<p className="creator-break">Your NFT contract: <strong>{confirmedAddress}</strong></p>}
+    {confirmedAddress&&<button type="button" disabled={busy||!!mintedTxHash} onClick={()=>void mintFirstNFT()}>
+      {mintedTxHash?"NFT #1 minted ✓":"Mint NFT #1 to my wallet (free)"}
+    </button>}
+    {mintedTxHash&&<p className="creator-break">Mint transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+mintedTxHash} target="_blank" rel="noopener noreferrer">{mintedTxHash}</a></p>}
    </div>
    <div className="creator-publish-panel">
     <h2>List your verified Testnet collection</h2>
-    <p>After 12 Testnet confirmations, LookeNFT verifies the factory event, collection owner, deployed bytecode and NFT standard before listing. Minting remains disabled.</p>
-    <button type="button" disabled={busy||published||!eligible||!txHash||!confirmedAddress} onClick={()=>void publishCollection()}>{published?"Listed ✓":busy?"Checking…":"List Testnet collection"}</button>
+    <p>Sign in with the wallet that deployed the contract to list it on LookeNFT. The site checks the confirmed transaction, NFT ownership and standard. Public paid minting remains disabled.</p>
+    <button type="button" disabled={busy||published||!canList||!txHash||!confirmedAddress} onClick={()=>void publishCollection()}>{published?"Listed ✓":busy?"Checking…":"List Testnet collection"}</button>
     {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent(confirmedAddress)}>Open collection preview ↗</Link></p>}
-    <p className="operator-note">This self-service flow does not unlock mint phases, trading or mainnet deployment. Every deployment requires the creator's explicit wallet approval.</p>
+    {!canList&&<p className="operator-note">Use the connected wallet's Sign in action to list your collection. No admin approval is needed.</p>}
+    <p className="operator-note">Creator NFT minting is free except Testnet gas. Trading, public paid minting and mainnet remain off.</p>
    </div>
   </>}
   {notice&&<p role="status" className="operator-note">{notice}</p>}
