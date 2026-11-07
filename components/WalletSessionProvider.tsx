@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ACTIVE_NETWORK } from "@/lib/network";
 import { makeCancunProbeCreationCode } from "@/lib/testnet/probe";
+import { safeCreatorDeploymentGas } from "@/lib/testnet/creator-gas";
 import { createPublicClient, decodeFunctionData, encodeFunctionData, http, isAddress, toFunctionSelector, toHex, verifyTypedData, type Address, type Hex } from "viem";
 import { mintAbi, mintCallAbi, requiredPayment } from "@/lib/m5/mint";
 import { M7_MARKET_ADDRESS,marketAbi,marketTypes,listingDomain,hashListing,m7Gate,type Listing } from "@/lib/m7/market";
@@ -379,11 +380,29 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     if(validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase() ||
        hexChain(chain)!==18881 || sequence.current!==revision)
       throw Error("Wallet or Ultra Testnet network changed; reconnect and retry");
+    // Preflight against Ultra's canonical RPC instead of blindly accepting
+    // MetaMask's suggested gas price (which has shown million-UOS quotes).
+    // Wallet never opens for a failed simulation or an unsafe total gas fee.
+    const rpc=createPublicClient({
+      transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})
+    });
+    const [rpcChain,estimatedGas,networkGasPrice]=await Promise.all([
+      rpc.getChainId(),
+      rpc.estimateGas({account:wallet as Address,data:creationData,value:0n}),
+      rpc.getGasPrice()
+    ]).catch((cause)=>{
+      throw new Error("Ultra Testnet cannot safely estimate this NFT deployment. Do not bypass the fee warning: "+
+        (cause instanceof Error?cause.message:String(cause)));
+    });
+    if(rpcChain!==18881||revision!==sequence.current)
+      throw new Error("Ultra Testnet RPC or connected wallet changed during gas validation.");
+    const safe=safeCreatorDeploymentGas(estimatedGas,networkGasPrice);
     setPending(true);
     try {
       const hash=await provider.request({
         method:"eth_sendTransaction",
-        params:[{from:wallet,data:creationData,value:"0x0"}]
+        params:[{from:wallet,data:creationData,value:"0x0",
+          gas:toHex(safe.gasLimit),gasPrice:toHex(safe.gasPriceWei)}]
       });
       if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
         throw Error("Wallet returned an invalid NFT deployment transaction");
