@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {createPublicClient,encodeFunctionData,http,parseAbi,type Address,type Hex} from "viem";
+import {createPublicClient,encodeFunctionData,http,parseAbi,parseEventLogs,type Address,type Hex} from "viem";
 import {useWalletSession} from "@/components/WalletSessionProvider";
 import {ULTRA_TESTNET} from "@/lib/network";
+import {mintAbi,mintCallAbi} from "@/lib/m5/mint";
 
 type Drop={
  address:string;standard:"erc721"|"erc1155";title:string;description:string;
@@ -53,6 +54,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
  const [avatar,setAvatar]=useState(collection.avatarUrl||"");
  const [metadata,setMetadata]=useState("");
  const [walletCap,setWalletCap]=useState("3");
+ const [batchPhase,setBatchPhase]=useState<number|null>(null);
  const [show,setShow]=useState(false);
  async function inspect(){
   const address=collection.address as Address;
@@ -185,6 +187,96 @@ export default function CollectionManagePanel({collection,onChanged}:{
    onChanged({mintAvailable:false,mintEnabled:false});
   });
  }
+
+ // Owner convenience flow for an already-deployed ERC-721 contract. Contract code
+ // cannot be changed in place: public phases can mint up to 20 sequential IDs
+ // per transaction, while owner-only mintReserved creates just one at a time.
+ async function prepareBatchMint(){
+  await run(async()=>{
+   if(collection.standard!=="erc721")throw Error("Batch remaining mint is for ERC-721 collections.");
+   if(!wallet.authenticated||!wallet.address)throw Error("Sign in with the current collection owner wallet.");
+   const info=await inspect();
+   if(wallet.address.toLowerCase()!==info.owner)throw Error("This is not the current contract owner.");
+   const remaining=info.maxSupply-info.totalMinted;
+   if(remaining<1n)throw Error("This collection has no unminted NFTs.");
+   if(remaining>20n)throw Error("A single ERC-721 public mint supports at most 20 NFTs. Choose a smaller batch on the Mint page.");
+   if(info.paused){
+    await action(encodeFunctionData({abi,functionName:"unpauseMinting"}),"Minting unpaused for this collection.");
+   }
+   // Reuse an eligible public phase to avoid paying to create a duplicate one.
+   if(info.activePhase){
+    const id=BigInt(info.activePhase);
+    const [phase,used]=await Promise.all([
+      rpc.readContract({address:collection.address as Address,abi:mintAbi,functionName:"mintPhases",args:[id]}),
+      rpc.readContract({address:collection.address as Address,abi:mintAbi,functionName:"mintedByWallet",args:[id,wallet.address as Address]})
+    ]);
+    const [,end,price,cap,phaseCap,minted,root,cancelled]=phase;
+    if(!cancelled&&end>BigInt(Math.floor(Date.now()/1000))&&price===0n&&
+      root==="0x"+"0".repeat(64)&&BigInt(cap)-used>=remaining&&
+      BigInt(phaseCap)-BigInt(minted)>=remaining){
+     setBatchPhase(info.activePhase);
+     await syncMint(info.activePhase);
+     setNotice("Free phase #"+info.activePhase+" already allows all "+remaining+" remaining NFTs. Once active, choose Mint remaining NFTs below.");
+     return;
+    }
+   }
+   const block=await rpc.getBlock({blockTag:"latest"});
+   const start=block.timestamp+45n,end=start+7n*86400n;
+   const id=info.phaseCount+1;
+   await action(encodeFunctionData({abi,functionName:"scheduleMintPhase",
+      args:[start,end,0n,Number(remaining),Number(remaining),
+        ("0x"+"0".repeat(64)) as `0x${string}`]}),
+     "New free public batch-mint phase scheduled on-chain.");
+   setBatchPhase(id);
+   await syncMint(id);
+   await inspect();
+   setNotice("Public phase #"+id+" scheduled, opening about 45 seconds after its source block. Return here and choose Mint remaining NFTs once active. Anyone can mint from an open public phase.");
+  });
+ }
+ async function mintRemainingBatch(){
+  await run(async()=>{
+   if(collection.standard!=="erc721"||!wallet.authenticated||!wallet.address)
+    throw Error("Connect and sign in with the ERC-721 collection owner wallet.");
+   const info=await inspect();
+   const account=wallet.address as Address,address=collection.address as Address;
+   if(info.owner!==account.toLowerCase())throw Error("Contract ownership has changed.");
+   const remaining=info.maxSupply-info.totalMinted;
+   if(remaining<1n)throw Error("Nothing left to mint.");
+   if(remaining>20n)throw Error("The existing contract caps each batch at 20 NFTs.");
+   if(info.paused)throw Error("Minting is paused; unpause in Manage Collection first.");
+   const id=BigInt(batchPhase||info.activePhase);
+   if(id<1n)throw Error("Prepare a free batch-mint phase first.");
+   const [phase,used,nonce,block]=await Promise.all([
+     rpc.readContract({address,abi:mintAbi,functionName:"mintPhases",args:[id]}),
+     rpc.readContract({address,abi:mintAbi,functionName:"mintedByWallet",args:[id,account]}),
+     rpc.readContract({address,abi:mintAbi,functionName:"mintNonces",args:[id,account]}),
+     rpc.getBlock({blockTag:"latest"})
+   ]);
+   const [start,end,price,cap,phaseCap,minted,root,cancelled]=phase;
+   if(cancelled||price!==0n||root!=="0x"+"0".repeat(64))
+    throw Error("The selected phase is not an open, free public mint.");
+   if(block.timestamp<start)
+    throw Error("Your batch mint opens in "+(start-block.timestamp)+" seconds. Try again after it opens.");
+   if(block.timestamp>end)throw Error("This free phase has expired.");
+   if(BigInt(cap)-used<remaining||BigInt(phaseCap)-BigInt(minted)<remaining)
+    throw Error("The current phase limit cannot accommodate all remaining NFTs. Prepare a new eligible phase.");
+   const deadline=block.timestamp+600n<end?block.timestamp+600n:end;
+   const calldata=encodeFunctionData({abi:mintCallAbi,functionName:"mintFromPhase",
+     args:[id,0n,remaining,0n,[],nonce,deadline]});
+   const hash=await wallet.submitFreePublicMint(collection.address,calldata);
+   setNotice("Batch mint submitted: "+hash+". Waiting for a confirmed Ultra Testnet receipt.");
+   const receipt=await rpc.waitForTransactionReceipt({hash,confirmations:1,timeout:120000});
+   if(receipt.status!=="success")throw Error("Batch mint reverted; no new NFTs were confirmed.");
+   const logs=parseEventLogs({abi:mintAbi,logs:receipt.logs,eventName:"PhaseMint"});
+   if(!logs.some(event=>event.address.toLowerCase()===address.toLowerCase()&&
+       event.args.phaseId===id&&event.args.minter.toLowerCase()===account.toLowerCase()&&
+       event.args.quantity===remaining&&event.args.payment===0n))
+    throw Error("Transaction confirmed but the expected batch-mint event was not found.");
+   const refreshed=await inspect();
+   setNotice("Confirmed! Minted "+remaining+" NFTs to your wallet in one transaction ("+hash+"). Minted "+refreshed.totalMinted+"/"+refreshed.maxSupply+". Refresh the gallery to see the new token IDs.");
+  });
+ }
+
  return <section className="creator-publish-panel" style={{marginTop:28}}>
   <button type="button" className="creator-secondary" onClick={()=>setShow(s=>!s)}>
    {show?"Close Manage Collection":"Manage Collection · Owner"}
@@ -210,7 +302,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
      onClick={()=>void setVisibility(collection.status==="published"?"draft":"published")}>
      {collection.status==="published"?"Unlist collection from Explore":"List collection on Explore"}
     </button>
-    <Link href={"/market?collection="+encodeURIComponent(collection.address)}>
+    <Link href={"/market?collection="+encodeURIComponent(collection.address)+"#seller-listing"}>
      List an individual NFT for sale ↗
     </Link>
     <small>Token resale needs a verified marketplace contract and NFT transfer approval. If unavailable, the market explains why; no fake listing is created.</small>
@@ -227,6 +319,16 @@ export default function CollectionManagePanel({collection,onChanged}:{
     </button>
     <p className="operator-note">Free mint means 0 UOS price plus Testnet gas. Opening or pausing minting changes the smart contract, not just this page. Paid minting remains unavailable.</p>
    </div>
+   {collection.standard==="erc721"&&<div style={{display:"grid",gap:10}}>
+    <h3>Mint all remaining NFTs to my wallet</h3>
+    <p>On-chain supply: {live.totalMinted.toString()} minted out of {live.maxSupply.toString()}; <strong>{(live.maxSupply-live.totalMinted).toString()} remaining.</strong> An ERC-721 public mint can create up to 20 sequential token IDs in one transaction.</p>
+    <p className="operator-note">This requires a free public phase with a large enough per-wallet cap. Creating a new phase requires a separate owner-wallet approval and Testnet gas; minting requires another approval and gas. Other people can also mint during the public phase, so remaining NFTs are not reserved exclusively for you.</p>
+    <button type="button" disabled={busy||wallet.pending||!wallet.authenticated||live.totalMinted>=live.maxSupply}
+      onClick={()=>void prepareBatchMint()}>{busy?"Checking Testnet…":"Prepare one-transaction batch mint (wallet approval)"}</button>
+    <button type="button" disabled={busy||wallet.pending||!wallet.authenticated||live.totalMinted>=live.maxSupply||!(batchPhase||live.activePhase)}
+      onClick={()=>void mintRemainingBatch()}>Mint remaining NFTs to my wallet (wallet approval)</button>
+    <small>Approval is never automatic. The app verifies the active phase, your wallet limits, the transaction receipt and actual on-chain mint event.</small>
+   </div>}
    <div style={{display:"grid",gap:10}}>
     <h3>Update individual NFT pictures via metadata</h3>
     <p>To replace images of already-minted NFTs, host a new metadata folder with working image links and update the contract's base URI. Previous IPFS content does not change. {live.metadataFrozen?"This collection has permanently frozen token metadata.":""}</p>
