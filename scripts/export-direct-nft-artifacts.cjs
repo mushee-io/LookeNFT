@@ -2,7 +2,7 @@
 /**
  * Export public creation bytecode for wallet-signed NFT deployment.
  * Browser data is NEVER signed by a server; each creator deploys from their own
- * Ultra EVM Testnet wallet. Pinned OpenZeppelin 5.6.1 uses MCOPY, so compile with Cancun semantics.
+ * Ultra EVM Testnet wallet. Use isolated OpenZeppelin 5.1 with Paris bytecode, avoiding the PUSH0 and MCOPY opcodes that Ultra Testnet currently rejects.
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -15,6 +15,16 @@ for (const name of names.concat("LookeMintPhases")) {
   sources[key] = { content: fs.readFileSync(path.join(root,key),"utf8") };
 }
 function readImport(filename) {
+  // Preserve project-wide OpenZeppelin 5.6.1. For direct Testnet creator
+  // artifacts ONLY, resolve imports against an isolated pinned 5.1.0 package.
+  // Its Solidity has no Cancun-only MCOPY usage.
+  if (filename.startsWith("@openzeppelin/contracts/")) {
+    const subpath = filename.slice("@openzeppelin/contracts/".length);
+    const compatFile = path.join(root,"node_modules","@looke","oz-paris",subpath);
+    if (fs.existsSync(compatFile) && fs.statSync(compatFile).isFile())
+      return {contents:fs.readFileSync(compatFile,"utf8")};
+    return {error:"Pinned Paris-compatible OpenZeppelin contract missing: "+filename};
+  }
   for (const target of [
     path.resolve(root,filename),
     path.resolve(root,"contracts",filename),
@@ -31,7 +41,7 @@ const input = {
   settings:{
     optimizer:{enabled:true,runs:1},
     viaIR:true,
-    evmVersion:"cancun",
+    evmVersion:"paris",
     metadata:{bytecodeHash:"ipfs"},
     outputSelection:{"*":{"*":["abi","evm.bytecode.object","evm.deployedBytecode.object"]}}
   }
@@ -51,7 +61,7 @@ for (const [i,name] of names.entries()) {
     standard:i===0?"erc721":"erc1155",
     chainId:18881,
     compiler:solc.version(),
-    evmVersion:"cancun",
+    evmVersion:"paris",
     abi:compiled.abi,
     bytecode:"0x"+raw
   })+"\n");
