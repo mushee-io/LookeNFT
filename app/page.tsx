@@ -11,7 +11,7 @@ export default function HomePage(){
         <Link href="/explore" className="looke-landing-primary">Enter NFT Market <span aria-hidden="true">↗</span></Link>
         <Link href="/create" className="looke-landing-create">+ Create NFT Collection</Link>
       </div>
-      <p className="looke-landing-notice">Ultra EVM Testnet · Public creation requires a verified permissionless factory · Minting remains separately gated</p>
+      <p className="looke-landing-notice">Ultra EVM Testnet · Anyone can deploy directly from their wallet · Free creator NFT minting · No admin required</p>
     </div>
     <div className="looke-landing-bottom">
       <span>Community Testnet collections are creator-owned, not endorsed or audited by LookeNFT.</span>
