@@ -52,3 +52,21 @@ test("Owner UI clearly differentiates delete-from-app, hide, and onchain burn",a
  assert.match(page,/canManageTokens/);
  assert.doesNotMatch(contract,/function burn\(/);
 });
+
+
+test("Explore collection cards expose a separate owner-confirmed Testnet delete action",async()=>{
+ const explore=await source("app/explore/page.tsx");
+ const backend=await source("app/api/creator/collections/[address]/route.ts");
+ assert.match(explore,/curated-card-shell/);
+ assert.match(explore,/Delete collection/);
+ assert.match(explore,/role="dialog" aria-modal="true"/);
+ assert.match(explore,/DELETE "\+deleteTarget\.title/);
+ assert.match(explore,/wallet\.authenticated/);
+ assert.match(explore,/wallet\.chainId!==18881/);
+ assert.match(explore,/method:"DELETE"/);
+ assert.match(explore,/confirm:deleteTarget\.address\.toLowerCase\(\)/);
+ assert.match(explore,/setCollections\(old=>old\.filter/);
+ assert.match(explore,/does <strong>not<\/strong> burn NFTs/);
+ assert.match(backend,/owner\.toLowerCase\(\)!==session\.wallet\.toLowerCase\(\)/);
+ assert.match(backend,/archived_at=COALESCE\(archived_at,now\(\)\)/);
+});
