@@ -7,7 +7,7 @@ import { WalletSessionProvider } from "@/components/WalletSessionProvider";
 import "./globals.css";
 export const metadata:Metadata={
  title:"LookeNFT | Official Ultra EVM NFT Drops",
- description:"Explore operator-curated NFT collections on Ultra EVM. Wallet-confirmed minting opens only for approved drops.",
+ description:"Create and explore creator-owned Ultra EVM Testnet NFT collections. Free minting is controlled by each contract owner and approved in your wallet.",
 };
 export default function RootLayout({children}:Readonly<{children:ReactNode}>){
  return <html lang="en"><body><WalletSessionProvider><div className="site-shell">
@@ -16,6 +16,6 @@ export default function RootLayout({children}:Readonly<{children:ReactNode}>){
   </Link><nav className="site-nav" aria-label="Navigation"><Link href="/explore">Collections</Link><OperatorCreateNav /><Link href="/testnet">Testnet</Link></nav><WalletConnect /></header>
   <main id="content">{children}</main>
   <footer className="footer"><span>LookeNFT · Official curated NFT drops on Ultra EVM</span>
-  <span>Testnet preview · No public minting without independent release approval</span></footer>
+  <span>Ultra EVM Testnet · Creator-enabled free minting with wallet approval</span></footer>
  </div></WalletSessionProvider></body></html>;
 }
