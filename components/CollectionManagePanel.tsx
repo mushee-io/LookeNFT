@@ -210,7 +210,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
      onClick={()=>void setVisibility(collection.status==="published"?"draft":"published")}>
      {collection.status==="published"?"Unlist collection from Explore":"List collection on Explore"}
     </button>
-    <Link href={"/market?collection="+encodeURIComponent(collection.address)}>
+    <Link href={"/market?collection="+encodeURIComponent(collection.address)+"#seller-listing"}>
      List an individual NFT for sale ↗
     </Link>
     <small>Token resale needs a verified marketplace contract and NFT transfer approval. If unavailable, the market explains why; no fake listing is created.</small>
