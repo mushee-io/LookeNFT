@@ -1,11 +1,11 @@
 "use client";
 import { useEffect,useState,type FormEvent } from "react";
 import Link from "next/link";
-import { createPublicClient, encodeFunctionData, getAddress, http, isAddress, parseAbi, parseEther, toHex, type Address, type Hex } from "viem";
+import { createPublicClient, encodeDeployData, encodeFunctionData, getAddress, http, isAddress, parseAbi, parseEther, toHex, type Hex } from "viem";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { previewMetadata } from "@/lib/m4/preview";
-import { factoryAbi,validateCollectionDraft,M4_FACTORY_ADDRESS,M4_CANCUN_VERIFIED,M4_DEPLOY_ENABLED,type CollectionDraft } from "@/lib/m4/factory";
+import {validateCollectionDraft,type CollectionDraft} from "@/lib/m4/factory";
 
 type Standard="erc721"|"erc1155";
 type Form={
@@ -14,16 +14,19 @@ type Form={
  perWalletCap:string;royaltyPercent:string;
 };
 const defaults:Form={
- standard:"erc1155",name:"",symbol:"",description:"",coverUrl:"",
- metadataUri:"",totalCap:"10000",perIdCap:"10000",mintPriceUos:"0",traits:"",
+ standard:"erc721",name:"",symbol:"",description:"",coverUrl:"",
+ metadataUri:"",totalCap:"10",perIdCap:"1",mintPriceUos:"0",traits:"",
  perWalletCap:"3",royaltyPercent:"0"
 };
 const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
-const ownerAbi=parseAbi(["function owner() view returns (address)"]);
-const deployAllowed=M4_CANCUN_VERIFIED&&M4_DEPLOY_ENABLED&&isAddress(M4_FACTORY_ADDRESS,{strict:false});
+const erc721Constructor=parseAbi(["constructor(string name_,string symbol_,string baseURI_,uint256 maxSupply_,address creator_,address royaltyReceiver_,uint96 royaltyBps_)"]);
+const erc1155Constructor=parseAbi(["constructor(string uriTemplate_,uint256 totalCap_,uint256 perIdCap_,address creator_,address royaltyReceiver_,uint96 royaltyBps_)"]);
+const nftOwnershipAbi=parseAbi(["function owner() view returns (address)","function supportsInterface(bytes4) view returns (bool)"]);
+const mint721Abi=parseAbi(["function mintReserved(address recipient) returns (uint256)","function ownerOf(uint256) view returns (address)"]);
+const mint1155Abi=parseAbi(["function mintReserved(address recipient,uint256 tokenId,uint256 quantity)","function balanceOf(address,uint256) view returns (uint256)"]);
 
 function inspect(form:Form,wallet:string|null,salt:string){
- if(!wallet||!isAddress(wallet,{strict:false}))throw Error("Connect the authorised Ultra Testnet wallet.");
+ if(!wallet||!isAddress(wallet,{strict:false}))throw Error("Connect and sign in with an Ultra EVM Testnet wallet.");
  if(form.name.trim().length<2||form.name.trim().length>90)throw Error("Collection name must be 2–90 characters.");
  if(form.description.length>1200)throw Error("Description cannot exceed 1200 characters.");
  if(form.coverUrl){
@@ -55,7 +58,6 @@ async function readAdmin(res:Response){
 
 export default function CreateCollectionPage(){
  const wallet=useWalletSession();
- const [authorised,setAuthorised]=useState<boolean|null>(null);
  const [form,setForm]=useState<Form>(defaults);
  const [salt,setSalt]=useState("");
  const [stage,setStage]=useState<"edit"|"preview">("edit");
@@ -64,8 +66,8 @@ export default function CreateCollectionPage(){
  const [notice,setNotice]=useState("");
  const [txHash,setTxHash]=useState<Hex|null>(null);
  const [confirmedAddress,setConfirmedAddress]=useState("");
- const [manualAddress,setManualAddress]=useState("");
  const [published,setPublished]=useState(false);
+ const [mintedTxHash,setMintedTxHash]=useState<Hex|null>(null);
  const [localArtwork,setLocalArtwork]=useState<string|null>(null);
  const [selectedFile,setSelectedFile]=useState(false);
  const [artworkCount,setArtworkCount]=useState(0);
@@ -74,18 +76,12 @@ export default function CreateCollectionPage(){
   const random=new Uint8Array(32);window.crypto.getRandomValues(random);setSalt(toHex(random));
  },[]);
  useEffect(()=>()=>{if(localArtwork)URL.revokeObjectURL(localArtwork);},[localArtwork]);
- useEffect(()=>{
-  setAuthorised(null);
-  if(!wallet.authenticated||wallet.chainId!==18881){setAuthorised(false);return;}
-  const abort=new AbortController();
-  fetch("/api/admin/collections",{cache:"no-store",credentials:"same-origin",signal:abort.signal})
-   .then(r=>{if(!abort.signal.aborted)setAuthorised(r.ok);})
-   .catch(()=>{if(!abort.signal.aborted)setAuthorised(false);});
-  return()=>abort.abort();
- },[wallet.authenticated,wallet.address,wallet.chainId]);
+ const eligible=wallet.chainId===18881 && !!wallet.address;
+ const canList=eligible && wallet.authenticated;
+
  const put=(key:keyof Form,value:string)=>{
   setForm(old=>({...old,[key]:value,...(key==="totalCap"&&old.standard==="erc1155"?{perIdCap:value}:{})}));
-  setConfirmedAddress("");setTxHash(null);setPublished(false);setError("");setNotice("");
+  setConfirmedAddress("");setTxHash(null);setPublished(false);setMintedTxHash(null);setError("");setNotice("");
  };
  function preview(event:FormEvent){
   event.preventDefault();setError("");setNotice("");
@@ -93,86 +89,97 @@ export default function CreateCollectionPage(){
   catch(e){setError(e instanceof Error?e.message:"Invalid collection settings.");}
  }
  async function deploy(){
-  if(!authorised)return;
+  if(!eligible){setError("Connect your wallet to Ultra EVM Testnet to create an NFT.");return;}
   setError("");setNotice("");setBusy(true);
   try{
    const {validated}=inspect(form,wallet.address,salt);
-   if(!deployAllowed||!isAddress(M4_FACTORY_ADDRESS,{strict:false}))
-    throw Error("Operator-only V3 factory deployment is not enabled. An independently verified factory and Testnet approval are required.");
-   const factory=getAddress(M4_FACTORY_ADDRESS);
-   const owner=getAddress(validated.royaltyReceiver);
-   const [chainId,version,factoryOwner]=await Promise.all([
-    rpc.getChainId(),
-    rpc.readContract({address:factory,abi:factoryAbi,functionName:"VERSION"}),
-    rpc.readContract({address:factory,abi:ownerAbi,functionName:"owner"})
-   ]);
-   if(chainId!==18881||version!==3n||factoryOwner.toLowerCase()!==owner.toLowerCase())
-    throw Error("Configured factory is not the approved V3 contract controlled by this operator wallet.");
-   const expected=validated.standard==="erc721"
-    ? await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC721",
-      args:[owner,validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
-    : await rpc.readContract({address:factory,abi:factoryAbi,functionName:"predictERC1155",
-      args:[owner,validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
+   const filename=validated.standard==="erc721"?"create-erc721.json":"create-erc1155.json";
+   const response=await fetch("/contracts/"+filename,{cache:"force-cache"});
+   if(!response.ok)throw Error("NFT creation bytecode is not available in this website build.");
+   const artifact=await response.json() as {standard?:string;chainId?:number;evmVersion?:string;bytecode?:string};
+   if(artifact.chainId!==18881||artifact.standard!==validated.standard||
+      artifact.evmVersion!=="cancun"||!/^0x[0-9a-fA-F]{200,500000}$/.test(artifact.bytecode||""))
+     throw Error("Invalid Ultra Testnet NFT contract artifact.");
+   const owner=getAddress(wallet.address!);
+   const bytecode=artifact.bytecode as Hex;
    const calldata=validated.standard==="erc721"
-    ? encodeFunctionData({abi:factoryAbi,functionName:"createERC721",
-      args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,BigInt(validated.royaltyBps),validated.salt]})
-    : encodeFunctionData({abi:factoryAbi,functionName:"createERC1155",
-      args:[validated.uri,validated.totalCap,validated.perIdCap,owner,BigInt(validated.royaltyBps),validated.salt]});
-   const tx=await wallet.submitFactoryDeployment(factory,calldata);
-   setTxHash(tx);setNotice("Transaction submitted. Waiting for Ultra Testnet confirmation; collection is NOT yet published.");
+    ?encodeDeployData({abi:erc721Constructor,bytecode,args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,owner,BigInt(validated.royaltyBps)]})
+    :encodeDeployData({abi:erc1155Constructor,bytecode,args:[validated.uri,validated.totalCap,validated.perIdCap,owner,owner,BigInt(validated.royaltyBps)]});
+   const tx=await wallet.submitDirectNFTDeployment(calldata);
+   setTxHash(tx);
+   setNotice("Creation submitted from your wallet. Confirming your NFT contract on Ultra EVM Testnet.");
    const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
-   if(receipt.status!=="success")throw Error("Ultra Testnet rejected the deployment transaction.");
-   const [code,registered]=await Promise.all([
-    rpc.getCode({address:expected}),
-    rpc.readContract({address:factory,abi:factoryAbi,functionName:"isCollection",args:[expected]})
+   if(receipt.status!=="success"||receipt.to!==null||!receipt.contractAddress)
+    throw Error("The creation transaction did not deploy an NFT contract.");
+   const address=receipt.contractAddress;
+   const [code,ownedBy,supported]=await Promise.all([
+    rpc.getCode({address}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"owner"}),
+    rpc.readContract({address,abi:nftOwnershipAbi,functionName:"supportsInterface",
+      args:[validated.standard==="erc721"?"0x80ac58cd":"0xd9b67a26"]})
    ]);
-   if(!code||code==="0x"||!registered)throw Error("Deployment transaction confirmed, but the predicted collection was not verified at the V3 factory.");
-   setConfirmedAddress(expected);
-   setManualAddress(expected);
-   setNotice("Collection deployment confirmed at "+expected+". Before publishing, register it with the approved NFT indexer after its confirmation window.");
-  }catch(e){setError(e instanceof Error?e.message:"Unable to confirm Ultra Testnet deployment.");}
+   if(!code||code==="0x"||ownedBy.toLowerCase()!==owner.toLowerCase()||!supported)
+    throw Error("Your transaction confirmed but NFT owner or interface verification failed.");
+   setConfirmedAddress(address);
+   setNotice("Your NFT collection is deployed on Ultra EVM Testnet. You own it. Mint an NFT below or list it in LookeNFT.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to deploy Testnet NFT.");}
+  finally{setBusy(false);}
+ }
+ async function mintFirstNFT(){
+  if(!eligible||!confirmedAddress){setError("Connect your Testnet wallet and deploy a collection first.");return;}
+  setError("");setBusy(true);
+  try{
+   const creator=getAddress(wallet.address!);
+   const contract=getAddress(confirmedAddress);
+   const owner=await rpc.readContract({address:contract,abi:nftOwnershipAbi,functionName:"owner"});
+   if(owner.toLowerCase()!==creator.toLowerCase())throw Error("Only the owner can mint from their new collection.");
+   const calldata=form.standard==="erc721"
+    ?encodeFunctionData({abi:mint721Abi,functionName:"mintReserved",args:[creator]})
+    :encodeFunctionData({abi:mint1155Abi,functionName:"mintReserved",args:[creator,1n,1n]});
+   const tx=await wallet.submitCreatorReserveMint(contract,calldata);
+   const receipt=await rpc.waitForTransactionReceipt({hash:tx,confirmations:1,timeout:120000});
+   if(receipt.status!=="success")throw Error("The NFT mint transaction was unsuccessful.");
+   if(form.standard==="erc721"){
+    const tokenOwner=await rpc.readContract({address:contract,abi:mint721Abi,functionName:"ownerOf",args:[1n]});
+    if(tokenOwner.toLowerCase()!==creator.toLowerCase())throw Error("Mint confirmed, but NFT #1 ownership is unverified.");
+   }else{
+    const balance=await rpc.readContract({address:contract,abi:mint1155Abi,functionName:"balanceOf",args:[creator,1n]});
+    if(balance<1n)throw Error("Mint confirmed, but NFT #1 balance is unverified.");
+   }
+   setMintedTxHash(tx);
+   setNotice("NFT #1 has been minted to your wallet on Ultra EVM Testnet. No platform fee was charged.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to mint NFT.");}
   finally{setBusy(false);}
  }
  async function publishCollection(){
-  if(!authorised)return;
+  if(!canList){setError("Sign in with your connected Testnet wallet to list the collection.");return;}
   setError("");setNotice("");setBusy(true);
-  try{
+  try {
    inspect(form,wallet.address,salt);
-   if(selectedFile&&!form.coverUrl.trim())throw Error("The locally selected cover is only a preview. Host and approve the artwork, then enter its HTTPS URL before publishing.");
-   const address=(confirmedAddress||manualAddress).trim();
-   if(!isAddress(address,{strict:false}))throw Error("Deploy a collection or enter an already verified collection contract address first.");
-   if(txHash&&confirmedAddress&&address.toLowerCase()===confirmedAddress.toLowerCase()){
-    await readAdmin(await fetch("/api/admin/collections/register",{
-     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
-     body:JSON.stringify({address,txHash,standard:form.standard})
-    }));
-   }
-   await readAdmin(await fetch("/api/admin/collections",{
+   if(!confirmedAddress||!txHash)throw Error("Deploy this collection with your own wallet first.");
+   if(selectedFile&&!form.coverUrl.trim())throw Error("Upload your cover artwork to HTTPS storage and enter its URL before listing.");
+   const response=await fetch("/api/creator/collections",{
     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({address,title:form.name.trim(),description:form.description.trim(),
-      coverUrl:form.coverUrl.trim(),phaseId:"1"})
-   }));
-   await readAdmin(await fetch("/api/admin/collections",{
-    method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({address,action:"publish"})
-   }));
-   setPublished(true);setNotice("The official collection preview is published. Minting remains disabled until separate on-chain phase configuration and release approval.");
-  }catch(e){setError(e instanceof Error?e.message:"Publication was blocked.");}
+    body:JSON.stringify({address:confirmedAddress,txHash,standard:form.standard,
+      title:form.name.trim(),description:form.description.trim(),coverUrl:form.coverUrl.trim()})
+   });
+   await readAdmin(response);
+   setPublished(true);
+   setNotice("Your creator-owned Ultra Testnet collection is listed. Public minting remains disabled.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to register collection.");}
   finally{setBusy(false);}
  }
  const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
  return <section className="operator-page operator-create-page">
   <Link className="curated-back" href="/explore">← NFT collections</Link>
-  <p className="curated-overline">OFFICIAL NFT STUDIO · ULTRA EVM TESTNET</p>
+  <p className="curated-overline">COMMUNITY NFT STUDIO · ULTRA EVM TESTNET</p>
   <h1>Create an NFT collection</h1>
   <div className="gen-studio-link">
     <div><strong>Want 10,000 different characters?</strong><p>Upload transparent face, hair, eyes and accessory layers; choose rarity weights; generate unique NFT artwork and metadata.</p></div>
     <Link className="gen-studio-open" href="/create/generative">Open Generative Art Studio ↗</Link>
   </div>
-  <p>Upload artwork, choose supply and mint price, add traits, and preview a collection. Drafts do not mint, deploy or charge anyone; real publishing is operator-only.</p>
-  {authorised===false&&<p className="operator-note"><strong>Design preview mode.</strong> Upload artwork, create a local preview, and inspect generated metadata without signing in. Only the configured operator wallet can deploy or publish a genuine NFT collection.</p>}
-  {authorised===null&&<p className="operator-note">Checking publisher permissions; local previews are available immediately.</p>}
-  <div className="creator-steps" aria-label="Creation stages"><span className={stage==="edit"?"active":""}>1. Collection details</span><span className={stage==="preview"?"active":""}>2. Preview</span><span>3. Publish to market</span></div>
+  <p>Anyone can deploy an NFT directly from their wallet on Ultra EVM Testnet. No LookeNFT admin key or creation fee. Only ordinary Testnet gas is needed; every transaction requires your wallet approval.</p>
+  {!eligible&&<p className="operator-note"><strong>Connect any wallet to Ultra EVM Testnet to deploy.</strong> Sign in only if you want to list the collection in LookeNFT.</p>}
   {stage==="edit"?<form className="operator-create-form" onSubmit={preview}>
    <div className="creator-fields">
     <label>Collection name<input required maxLength={90} value={form.name} onChange={e=>put("name",e.target.value)} placeholder="Ultra Punks"/></label>
@@ -202,7 +209,7 @@ export default function CreateCollectionPage(){
     <label className="creator-wide">Description<textarea rows={4} maxLength={1200} value={form.description} onChange={e=>put("description",e.target.value)} placeholder="Tell collectors about this drop…"/></label>
      <label className="creator-wide">Traits (optional, one Name: Value per line)<textarea rows={4} value={form.traits} onChange={e=>put("traits",e.target.value)} placeholder="Background: Pink"/></label>
    </div>
-   <p className="operator-note"><strong>10,000 supply preselected.</strong> One image + ERC-1155 means 10,000 copies of an edition, not 10,000 unique artworks. Unique ERC-721 imagery and rarity require real image layers and metadata. Local preview files are not uploaded. On-chain publishing needs verified hosted metadata and operator authorization.</p>
+   <p className="operator-note"><strong>Preview is not a deployment.</strong> Choose ERC-721 for unique art or ERC-1155 for editions. Images selected here are only local previews. Hosted metadata and explicit wallet approval are required for a real Testnet transaction.</p>
    <button type="submit">Preview collection →</button>
   </form>:<>
    <div className="creator-preview">
@@ -218,28 +225,26 @@ export default function CreateCollectionPage(){
      <button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(JSON.stringify(design?.metadata,null,2));}}>Copy example metadata JSON</button>
     </div>
     <div className="creator-review-actions"><button type="button" className="creator-secondary" disabled={busy} onClick={()=>setStage("edit")}>← Edit details</button></div>
-   {authorised===true?<div className="creator-publish-panel">
-    <h2>Deploy to Ultra Testnet</h2>
-    <p>Only your authorised wallet can approve a transaction from the owner-only V3 factory. NFT creation on Ultra is a separate blockchain transaction, not the same as publishing a catalogue card.</p>
-    <button type="button" disabled={busy||!deployAllowed||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
-    {!deployAllowed&&<p className="operator-note">On-chain deployment is currently locked until the V3 factory is deployed and verified and the independent M4 security gates are enabled. The editor and preview remain available.</p>}
+   <div className="creator-publish-panel">
+    <h2>Create your NFT on Ultra EVM Testnet</h2>
+    <p>Open to every Testnet wallet. Deploy your own ERC-721 or ERC-1155 contract without a factory, an admin key, or a LookeNFT creation fee.</p>
+    <button type="button" disabled={busy||!eligible||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
+    {!eligible&&<p className="operator-note">Connect any wallet on Ultra EVM Testnet to create an NFT.</p>}
     {txHash&&<p className="creator-break">Transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a></p>}
-    {confirmedAddress&&<p className="creator-break">Verified collection address: <strong>{confirmedAddress}</strong></p>}
-   </div>:<div className="creator-publish-panel">
-    <h2>Publishing requires the LookeNFT admin wallet</h2>
-    <p>Your 10,000-edition artwork and metadata preview are ready locally. Publishing a collection needs your complete authorized wallet address, a verified Ultra contract and hosted metadata.</p>
-    {wallet.address&&<button type="button" className="creator-secondary" onClick={()=>{void navigator.clipboard.writeText(wallet.address||"");}}>Copy my full connected wallet address</button>}
-    <p><button type="button" disabled>Publish to Ultra (operator access required)</button></p>
-    <p className="operator-note">This test preview does not broadcast a transaction, mint NFTs, or publish anything to mainnet.</p>
-   </div>}
-   {authorised===true&&<div className="creator-publish-panel">
-    <h2>Publish official preview to the market</h2>
-    <p>After deployment and 12 Testnet confirmations, this tool verifies your factory event and indexer record before publishing the collection preview to the gallery. Already registered collections can also be entered below. Minting stays disabled.</p>
-    <label>Verified collection contract address<input value={confirmedAddress||manualAddress} onChange={e=>{setManualAddress(e.target.value);setPublished(false);}} placeholder="0x…"/></label>
-    <button type="button" disabled={busy||published||!(confirmedAddress||manualAddress)} onClick={()=>void publishCollection()}>{published?"Published ✓":busy?"Publishing…":"Publish to LookeNFT market"}</button>
-    {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent((confirmedAddress||manualAddress).trim())}>Open public collection preview ↗</Link></p>}
-    <p className="operator-note">Minting remains closed until a valid priced phase is scheduled on-chain and M5/M12 financial execution has been independently approved. The price above is not a live on-chain quote.</p>
-   </div>}
+    {confirmedAddress&&<p className="creator-break">Your NFT contract: <strong>{confirmedAddress}</strong></p>}
+    {confirmedAddress&&<button type="button" disabled={busy||!!mintedTxHash} onClick={()=>void mintFirstNFT()}>
+      {mintedTxHash?"NFT #1 minted ✓":"Mint NFT #1 to my wallet (free)"}
+    </button>}
+    {mintedTxHash&&<p className="creator-break">Mint transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+mintedTxHash} target="_blank" rel="noopener noreferrer">{mintedTxHash}</a></p>}
+   </div>
+   <div className="creator-publish-panel">
+    <h2>List your verified Testnet collection</h2>
+    <p>Sign in with the wallet that deployed the contract to list it on LookeNFT. The site checks the confirmed transaction, NFT ownership and standard. Public paid minting remains disabled.</p>
+    <button type="button" disabled={busy||published||!canList||!txHash||!confirmedAddress} onClick={()=>void publishCollection()}>{published?"Listed ✓":busy?"Checking…":"List Testnet collection"}</button>
+    {published&&<p><Link className="inline-link" href={"/collection/"+encodeURIComponent(confirmedAddress)}>Open collection preview ↗</Link></p>}
+    {!canList&&<p className="operator-note">Use the connected wallet's Sign in action to list your collection. No admin approval is needed.</p>}
+    <p className="operator-note">Creator NFT minting is free except Testnet gas. Trading, public paid minting and mainnet remain off.</p>
+   </div>
   </>}
   {notice&&<p role="status" className="operator-note">{notice}</p>}
   {error&&<p role="alert" className="operator-error">{error}</p>}
