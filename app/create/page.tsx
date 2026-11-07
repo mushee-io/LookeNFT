@@ -124,30 +124,21 @@ export default function CreateCollectionPage(){
   finally{setBusy(false);}
  }
  async function publishCollection(){
-  if(!authorised)return;
+  if(!eligible){setError("Connect and sign in with your Testnet wallet first.");return;}
   setError("");setNotice("");setBusy(true);
-  try{
+  try {
    inspect(form,wallet.address,salt);
-   if(selectedFile&&!form.coverUrl.trim())throw Error("The locally selected cover is only a preview. Host and approve the artwork, then enter its HTTPS URL before publishing.");
-   const address=(confirmedAddress||manualAddress).trim();
-   if(!isAddress(address,{strict:false}))throw Error("Deploy a collection or enter an already verified collection contract address first.");
-   if(txHash&&confirmedAddress&&address.toLowerCase()===confirmedAddress.toLowerCase()){
-    await readAdmin(await fetch("/api/admin/collections/register",{
-     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
-     body:JSON.stringify({address,txHash,standard:form.standard})
-    }));
-   }
-   await readAdmin(await fetch("/api/admin/collections",{
+   if(!confirmedAddress||!txHash)throw Error("Deploy this collection with your own wallet first.");
+   if(selectedFile&&!form.coverUrl.trim())throw Error("Upload your cover artwork to HTTPS storage and enter its URL before listing.");
+   const response=await fetch("/api/creator/collections",{
     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({address,title:form.name.trim(),description:form.description.trim(),
-      coverUrl:form.coverUrl.trim(),phaseId:"1"})
-   }));
-   await readAdmin(await fetch("/api/admin/collections",{
-    method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({address,action:"publish"})
-   }));
-   setPublished(true);setNotice("The official collection preview is published. Minting remains disabled until separate on-chain phase configuration and release approval.");
-  }catch(e){setError(e instanceof Error?e.message:"Publication was blocked.");}
+    body:JSON.stringify({address:confirmedAddress,txHash,standard:form.standard,
+      title:form.name.trim(),description:form.description.trim(),coverUrl:form.coverUrl.trim()})
+   });
+   await readAdmin(response);
+   setPublished(true);
+   setNotice("Your creator-owned Ultra Testnet collection is listed. Public minting remains disabled.");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to register collection.");}
   finally{setBusy(false);}
  }
  const design=stage==="preview"?previewMetadata(form,Boolean(localArtwork)):null;
