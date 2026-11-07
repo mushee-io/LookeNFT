@@ -158,7 +158,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
    }
    if(info.activePhase){
     await syncMint(info.activePhase);
-    setNotice("Existing free public mint phase enabled. No second phase was created.");
+    setNotice("Existing free public mint phase found on-chain. No new phase was created.");
     await inspect();
     return;
    }
@@ -312,7 +312,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
     <p>On-chain mint status: {live.paused?"Paused":live.activePhase?"Free phase #"+live.activePhase+" scheduled":"No current public free phase"}.
      {" "}Minted {live.totalMinted.toString()} of {live.maxSupply.toString()} NFTs.</p>
     <label>Max mint per wallet (new free phase)<input inputMode="numeric" value={walletCap} onChange={e=>setWalletCap(e.target.value)}/></label>
-    <button type="button" disabled={busy||!wallet.authenticated||collection.status!=="published"}
+    <button type="button" disabled={busy||!wallet.authenticated}
      onClick={()=>void enableMint()}>{busy?"Checking Testnet…":"Enable free mint (wallet approval)"}</button>
     <button type="button" className="creator-secondary" disabled={busy||live.paused} onClick={()=>void pauseMint()}>
      Pause minting (wallet approval)
