@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-import {MAX_CREATOR_FEE_WEI,safeCreatorDeploymentGas} from "../lib/testnet/creator-gas";
+import {MAX_CREATOR_FEE_WEI,safeCreatorDeploymentGas,safeCreatorMintGas} from "../lib/testnet/creator-gas";
 
 test("Normal Ultra Testnet quote for a large NFT deployment remains below fee limit",()=>{
   const quote=safeCreatorDeploymentGas(4_617_948n,1_500_000_000_000n);
@@ -28,4 +28,19 @@ test("Live NFT deployment wallet requests explicit RPC gas and capped estimate",
   assert.match(method,/rpcChain!==18881/);
   assert.match(method,/safeCreatorDeploymentGas\(estimatedGas,networkGasPrice\)/);
   assert.match(method,/gas:toHex\(safe\.gasLimit\),gasPrice:toHex\(safe\.gasPriceWei\)/);
+});
+
+test("Free reserve mint gas is also priced from official RPC and capped",async()=>{
+ const normal=safeCreatorMintGas(180_000n,1_500_000_000_000n);
+ assert.equal(normal.gasLimit,216_000n);
+ assert.ok(normal.maxFeeWei<1n*10n**18n);
+ assert.throws(()=>safeCreatorMintGas(180_000n,10n**18n),/unsafe NFT mint gas price/);
+ assert.throws(()=>safeCreatorMintGas(1_200_000n,10_000_000_000_000n),/5 UOS safety limit/);
+ const source=await readFile(new URL("../components/WalletSessionProvider.tsx",import.meta.url),"utf8");
+ const mint=source.slice(source.indexOf("async function submitCreatorReserveMint("),
+                          source.indexOf("async function submitFactoryDeployment("));
+ assert.match(mint,/rpc\.estimateGas/);
+ assert.match(mint,/rpc\.getGasPrice/);
+ assert.match(mint,/safeCreatorMintGas\(estimatedGas,networkGasPrice\)/);
+ assert.match(mint,/gas:toHex\(safe\.gasLimit\),gasPrice:toHex\(safe\.gasPriceWei\)/);
 });
