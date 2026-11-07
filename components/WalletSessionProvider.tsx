@@ -31,6 +31,8 @@ type WalletContextValue = {
   submitTestnetProbe: () => Promise<Hex>;
   submitDirectNFTDeployment: (creationData: Hex) => Promise<Hex>;
   submitCreatorReserveMint: (collection: string, calldata: Hex) => Promise<Hex>;
+  submitCollectionControl: (collection: string, calldata: Hex) => Promise<Hex>;
+  submitFreePublicMint: (collection: string, calldata: Hex) => Promise<Hex>;
   submitFactoryDeployment: (factoryAddress: string, calldata: Hex) => Promise<Hex>;
   submitMint: (collection: string, calldata: Hex, valueWei: bigint) => Promise<Hex>;
   signMarketListing: (listing: Listing) => Promise<Hex>;
@@ -457,6 +459,113 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     }finally{setPending(false);}
   }
 
+  /**
+   * Creator-owned Ultra Testnet NFT management. No operator key, factory, or
+   * off-chain impersonation. On-chain owner() and a restrictive function ABI
+   * are checked immediately before each explicit wallet confirmation.
+   */
+  async function submitCollectionControl(collection:string,calldata:Hex):Promise<Hex>{
+    const provider=providerRef.current,wallet=address,revision=sequence.current;
+    if(!provider||!wallet||pending||!isAddress(collection,{strict:false}))
+      throw Error("Connect the NFT collection owner wallet on Ultra Testnet.");
+    const controlAbi=[
+      {type:"function",name:"scheduleMintPhase",stateMutability:"nonpayable",
+       inputs:[{name:"start",type:"uint64"},{name:"end",type:"uint64"},{name:"unitPrice",type:"uint96"},
+        {name:"walletCap",type:"uint32"},{name:"phaseCap",type:"uint32"},{name:"merkleRoot",type:"bytes32"}],outputs:[{name:"phaseId",type:"uint256"}]},
+      {type:"function",name:"pauseMinting",stateMutability:"nonpayable",inputs:[],outputs:[]},
+      {type:"function",name:"unpauseMinting",stateMutability:"nonpayable",inputs:[],outputs:[]},
+      {type:"function",name:"setBaseURI",stateMutability:"nonpayable",inputs:[{name:"nextURI",type:"string"}],outputs:[]},
+      {type:"function",name:"setURI",stateMutability:"nonpayable",inputs:[{name:"nextURI",type:"string"}],outputs:[]},
+    ] as const;
+    const decoded=decodeFunctionData({abi:controlAbi,data:calldata});
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [accounts,chain,rpcChain,owner,code,block]=await Promise.all([
+      provider.request({method:"eth_accounts"}),provider.request({method:"eth_chainId"}),
+      rpc.getChainId(),
+      rpc.readContract({address:collection as Address,abi:[{type:"function",name:"owner",stateMutability:"view",inputs:[],outputs:[{type:"address"}]}] as const,functionName:"owner"}),
+      rpc.getCode({address:collection as Address}),rpc.getBlock()
+    ]);
+    if(rpcChain!==18881||hexChain(chain)!==18881||!code||code==="0x"||
+      validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase()||
+      owner.toLowerCase()!==wallet.toLowerCase()||revision!==sequence.current)
+      throw Error("Current on-chain collection ownership or Ultra Testnet wallet does not match.");
+    if(decoded.functionName==="scheduleMintPhase"){
+      const [start,end,price,walletCap,phaseCap,root]=decoded.args;
+      if(price!==0n||root!=="0x"+"0".repeat(64)||start<block.timestamp||
+         end<=start||end-start>90n*86400n||
+         walletCap<1||walletCap>1000||phaseCap<1||phaseCap>1_000_000||walletCap>phaseCap)
+        throw Error("Only bounded, free and public Ultra Testnet mint phases are allowed.");
+    }
+    if(decoded.functionName==="setBaseURI"||decoded.functionName==="setURI"){
+      const uri=decoded.args[0];
+      if(!/^ipfs:\/\/[a-zA-Z0-9]+\/[\w./{}-]*$/.test(uri)||uri.length>512||
+         uri.includes("..")||uri.includes("//",7))
+        throw Error("NFT artwork metadata must be a valid IPFS collection URI.");
+    }
+    const [estimated,price]=await Promise.all([
+      rpc.estimateGas({account:wallet as Address,to:collection as Address,data:calldata,value:0n}),
+      rpc.getGasPrice()
+    ]);
+    const safe=safeCreatorMintGas(estimated,price);
+    if(revision!==sequence.current)throw Error("Wallet changed before collection-management approval");
+    setPending(true);
+    try{
+      const hash=await provider.request({method:"eth_sendTransaction",
+        params:[{from:wallet,to:collection,data:calldata,value:"0x0",
+          gas:toHex(safe.gasLimit),gasPrice:toHex(safe.gasPriceWei)}]});
+      if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))throw Error("Invalid wallet transaction hash");
+      return hash as Hex;
+    }finally{setPending(false);}
+  }
+
+  /** Anyone can mint from a real active FREE, public, nonpaused phase. */
+  async function submitFreePublicMint(collection:string,calldata:Hex):Promise<Hex>{
+    const provider=providerRef.current,wallet=address,revision=sequence.current;
+    if(!provider||!wallet||pending||!isAddress(collection,{strict:false}))
+      throw Error("Connect an Ultra EVM Testnet wallet first.");
+    const decoded=decodeFunctionData({abi:mintCallAbi,data:calldata});
+    if(decoded.functionName!=="mintFromPhase")throw Error("Unknown NFT mint request");
+    const [id,tokenId,qty,allowance,proof,nonce,deadline]=decoded.args;
+    if(id<1n||qty<1n||qty>20n||allowance!==0n||proof.length!==0)
+      throw Error("Only public, free, non-allowlist NFT mints are available.");
+    const rpc=createPublicClient({transport:http(ACTIVE_NETWORK.rpcUrl,{timeout:12000,retryCount:1})});
+    const [chain,providerChain,accounts,phase,paused,nextNonce,mintedWallet,block]=await Promise.all([
+      rpc.getChainId(),provider.request({method:"eth_chainId"}),provider.request({method:"eth_accounts"}),
+      rpc.readContract({address:collection as Address,abi:mintAbi,functionName:"mintPhases",args:[id]}),
+      rpc.readContract({address:collection as Address,abi:[{type:"function",name:"paused",stateMutability:"view",inputs:[],outputs:[{type:"bool"}]}] as const,functionName:"paused"}),
+      rpc.readContract({address:collection as Address,abi:mintAbi,functionName:"mintNonces",args:[id,wallet as Address]}),
+      rpc.readContract({address:collection as Address,abi:mintAbi,functionName:"mintedByWallet",args:[id,wallet as Address]}),
+      rpc.getBlock()
+    ]);
+    const [start,end,price,walletCap,cap,minted,root,cancelled]=phase;
+    if(chain!==18881||hexChain(providerChain)!==18881||
+       validAccounts(accounts)[0]?.toLowerCase()!==wallet.toLowerCase()||
+       revision!==sequence.current||paused||cancelled||
+       start>block.timestamp||end<block.timestamp||deadline<block.timestamp||deadline>end||
+       price!==0n||root!=="0x"+"0".repeat(64)||nonce!==nextNonce||
+       BigInt(cap)-BigInt(minted)<qty||BigInt(walletCap)-mintedWallet<qty)
+      throw Error("Free NFT mint is closed or the wallet, nonce or allowance changed.");
+    const is721=await rpc.readContract({
+      address:collection as Address,abi:mintAbi,functionName:"supportsInterface",args:["0x80ac58cd"]});
+    if(is721&&tokenId!==0n)throw Error("ERC-721 mint must use tokenId 0 for sequential assignment.");
+    const [estimate,gasPrice]=await Promise.all([
+      rpc.estimateGas({account:wallet as Address,to:collection as Address,data:calldata,value:0n}),
+      rpc.getGasPrice()
+    ]);
+    const safe=safeCreatorMintGas(estimate,gasPrice);
+    if(revision!==sequence.current)throw Error("Wallet changed before NFT mint approval");
+    setPending(true);
+    try{
+      const hash=await provider.request({method:"eth_sendTransaction",params:[{
+        from:wallet,to:collection,data:calldata,value:"0x0",
+        gas:toHex(safe.gasLimit),gasPrice:toHex(safe.gasPriceWei)
+      }]});
+      if(typeof hash!=="string"||!/^0x[0-9a-fA-F]{64}$/.test(hash))
+        throw Error("Wallet did not return a valid Testnet mint transaction");
+      return hash as Hex;
+    }finally{setPending(false);}
+  }
+
   async function submitFactoryDeployment(factoryAddress: string, calldata: Hex): Promise<Hex> {
     if (process.env.NEXT_PUBLIC_M4_CANCUN_VERIFIED !== "true")
       throw new Error("Ultra EVM Testnet Cancun opcode compatibility is not operator-verified");
@@ -847,7 +956,7 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider value={{
       options, address, chainId, authenticated: Boolean(session), profileId: session?.profileId ?? null,
       activeWallet, pending, error, pairingUri, connect, connectWalletConnect, signIn, switchNetwork,
-      disconnect, unlinkProfile, submitTestnetProbe, submitDirectNFTDeployment, submitCreatorReserveMint, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
+      disconnect, unlinkProfile, submitTestnetProbe, submitDirectNFTDeployment, submitCreatorReserveMint, submitCollectionControl, submitFreePublicMint, submitFactoryDeployment, submitMint, signMarketListing, submitMarketBuy, cancelMarketNonce, signBuyerOffer, fundBuyerOffer, acceptBuyerOffer, refundBuyerOffer, dismissPairing: () => setPairingUri(null),
     }}>
       {children}
     </WalletContext.Provider>
