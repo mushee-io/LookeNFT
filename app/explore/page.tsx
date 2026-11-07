@@ -25,18 +25,18 @@ export default function ExplorePage(){
     <div className="curated-hero">
       <p className="curated-chip">NFT MARKETPLACE · ULTRA EVM TESTNET</p>
       <h1>Discover <span>LookeNFT</span> collections.</h1>
-      <p>Only official, operator-published NFT drops appear here. Open a collection to preview its details, and mint when the drop is enabled.</p>
+      <p>Browse community-created, on-chain-verified Testnet collections. Listings are not endorsements or audits. Minting requires separate on-chain activation.</p>
     </div>
-    <div className="curated-heading"><div><p className="curated-overline">OFFICIAL COLLECTIONS</p><h2>Explore drops</h2></div><div className="curated-heading-actions"><OperatorCreateNav /><span className="curated-count">{loading?"Loading":collections.length+" published"}</span></div></div>
-    {collections.length>0&&<label className="curated-search-label">Search collections<input aria-label="Search official NFT collections" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by collection name" /></label>}
+    <div className="curated-heading"><div><p className="curated-overline">TESTNET COLLECTIONS</p><h2>Explore drops</h2></div><div className="curated-heading-actions"><OperatorCreateNav /><span className="curated-count">{loading?"Loading":collections.length+" published"}</span></div></div>
+    {collections.length>0&&<label className="curated-search-label">Search collections<input aria-label="Search Testnet NFT collections" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by collection name" /></label>}
     {loading?<div className="curated-empty" role="status">Loading official drops…</div>
       :error?<div className="curated-empty" role="alert">Unable to verify published collections right now. {error}</div>
       :shown.length?<div className="curated-grid">{shown.map(drop=><Link href={"/collection/"+drop.address} className="curated-card" key={drop.address}>
-        <div className="curated-cover">{drop.coverUrl?<img src={drop.coverUrl} alt={drop.title+" collection cover"} />:<div className="curated-no-cover" aria-label="Collection cover not provided"><span>◇</span><small>Official drop</small></div>}</div>
-        <div className="curated-card-body"><div className="curated-card-title"><h3>{drop.title}</h3><span className="curated-verified" aria-label="Published by operator">✓</span></div>
-        <p>{drop.description||"Official LookeNFT collection on Ultra EVM."}</p>
+        <div className="curated-cover">{drop.coverUrl?<img src={drop.coverUrl} alt={drop.title+" collection cover"} />:<div className="curated-no-cover" aria-label="Collection cover not provided"><span>◇</span><small>Testnet collection</small></div>}</div>
+        <div className="curated-card-body"><div className="curated-card-title"><h3>{drop.title}</h3><span className="curated-verified" aria-label="Verified Testnet deployment">◇</span></div>
+        <p>{drop.description||"Creator-owned collection on Ultra EVM Testnet."}</p>
         <div className="curated-card-bottom"><span>{drop.standard.toUpperCase()} · Testnet</span><strong>{drop.mintAvailable?"Mint open":"Preview"}</strong></div></div>
       </Link>)}</div>:
-      <div className="curated-empty"><div className="curated-empty-icon">◇</div><h3>{search?"No matching drops":catalogueReady?"No public NFT drops yet":"Official drops are coming"}</h3><p>{search?"Try another collection name.":"The LookeNFT operator will publish collections here after on-chain verification. No placeholder collections are shown."}</p></div>}
+      <div className="curated-empty"><div className="curated-empty-icon">◇</div><h3>{search?"No matching drops":catalogueReady?"No public NFT drops yet":"Official drops are coming"}</h3><p>{search?"Try another collection name.":"Verified creator-owned collections will appear here after Testnet deployment. No placeholder collections are shown."}</p></div>}
   </section>;
 }
