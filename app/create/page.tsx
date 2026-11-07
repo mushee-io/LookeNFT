@@ -118,7 +118,6 @@ export default function CreateCollectionPage(){
    ]);
    if(!code||code==="0x"||!registered)throw Error("Deployment confirmed, but public V2 factory registration was not verified.");
    setConfirmedAddress(expected);
-   setManualAddress(expected);
    setNotice("Collection deployment confirmed at "+expected+". Wait for 12 confirmations before listing the creator-owned collection.");
   }catch(e){setError(e instanceof Error?e.message:"Unable to confirm Ultra Testnet deployment.");}
   finally{setBusy(false);}
