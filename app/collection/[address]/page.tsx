@@ -4,11 +4,12 @@ import { useEffect,useState } from "react";
 import Link from "next/link";
 type Drop={address:string;standard:string;title:string;description:string;coverUrl:string|null;phaseId:string;mintAvailable:boolean};
 type Result={collections?:Drop[];error?:string};
-type Token={tokenId:string;lastObservedBlock:string};
+type Token={tokenId:string;lastObservedBlock:string;name?:string;imageUrl?:string;owner?:string;evidenceSource?:string};
 export default function CollectionDetail(){
  const {address}=useParams<{address:string}>();
  const [drop,setDrop]=useState<Drop|null>(null);
  const [tokens,setTokens]=useState<Token[]>([]);
+ const [tokenSource,setTokenSource]=useState("");
  const [tab,setTab]=useState<"items"|"about">("items");
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState<string|null>(null);
@@ -21,7 +22,7 @@ export default function CollectionDetail(){
       const chosen=data.collections?.[0];if(!chosen)throw Error("Collection not found");
       setDrop(chosen);
       const r=await fetch("/api/nfts/tokens?collection="+encodeURIComponent(chosen.address),{signal:ctl.signal,cache:"no-store"});
-      if(r.ok){const result=await r.json() as {tokens?:Token[]};if(!ctl.signal.aborted)setTokens(result.tokens||[]);}
+      if(r.ok){const result=await r.json() as {tokens?:Token[];source?:string};if(!ctl.signal.aborted){setTokens(result.tokens||[]);setTokenSource(result.source||"");}}
    })
    .catch(e=>{if(!ctl.signal.aborted)setError(e instanceof Error?e.message:"Unable to load collection");})
    .finally(()=>{if(!ctl.signal.aborted)setLoading(false);});
@@ -37,8 +38,8 @@ export default function CollectionDetail(){
     {drop.mintAvailable?<Link className="curated-mint" href={"/mint?collection="+encodeURIComponent(drop.address)}>Mint NFT ↗</Link>:<span className="curated-muted-mint">Mint not open</span>}
   </div>
   <div className="curated-tabs"><button className={tab==="items"?"active":""} onClick={()=>setTab("items")}>Items</button><button className={tab==="about"?"active":""} onClick={()=>setTab("about")}>About</button></div>
-  {tab==="items"?<><p className="curated-list-caption">Indexed on-chain token IDs · {tokens.length} currently returned</p>{tokens.length?<div className="curated-items">{tokens.map(t=><article className="curated-item" key={t.tokenId}>
-   <div className="curated-item-art">#{t.tokenId}</div><div className="curated-item-info"><strong>Token #{t.tokenId}</strong><span>Observed at block {t.lastObservedBlock}</span></div></article>)}</div>:
+  {tab==="items"?<><p className="curated-list-caption">{tokenSource==="read-only-on-chain-ownership-snapshot"?"Verified on-chain NFT ownership":"Indexed on-chain token IDs"} · {tokens.length} currently returned</p>{tokens.length?<div className="curated-items">{tokens.map(t=><article className="curated-item" key={t.tokenId}>
+   <div className="curated-item-art">{t.imageUrl?<img src={t.imageUrl} alt={t.name||"NFT #"+t.tokenId} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:"#"+t.tokenId}</div><div className="curated-item-info"><strong>{t.name||"Token #"+t.tokenId}</strong><span>{t.evidenceSource==="verified-on-chain-ownerOf"?"Ownership verified on-chain at block ":"Observed at block "}{t.lastObservedBlock}</span></div></article>)}</div>:
   <div className="curated-empty"><h3>No indexed tokens yet</h3><p>Once real NFT mint events are indexed, their token IDs will appear here. No example inventory is shown.</p></div>}</>:
   <div className="curated-about"><h2>About this collection</h2><p>{drop.description||"Creator-owned Ultra Testnet collection."}</p><p>Contract: {drop.address}</p><p>Minting: {drop.mintAvailable?"Enabled by separate mint release controls":"Not yet open"}</p></div>}
  </section>;
