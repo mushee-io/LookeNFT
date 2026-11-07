@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
-import { createPublicClient, getAddress, http, isAddress, keccak256, parseAbi, parseEventLogs } from "viem";
+import { createPublicClient, getAddress, http, isAddress, keccak256, parseAbi } from "viem";
 import { requireSession } from "@/lib/server/auth";
 import { getDb, inTransaction } from "@/lib/server/db";
 import { ApiError, apiFailure, guardMutation, noStore, parseBody } from "@/lib/server/http";
-import { factoryAbi, M4_CANCUN_VERIFIED, M4_DEPLOY_ENABLED, M4_FACTORY_ADDRESS } from "@/lib/m4/factory";
 import { ULTRA_TESTNET } from "@/lib/network";
 import { validateCommunityCoverUrl } from "@/lib/server/community-cover";
 
@@ -16,19 +15,17 @@ const collectionAbi = parseAbi([
 ]);
 
 /**
- * Permissionless wallet-signed Testnet collection registration. Never authorises minting.
- * No admin key: the caller must be the deployer AND the current collection owner.
- * A factory event alone is insufficient: confirm 12 blocks, bytecode, interface,
- * v2 factory, owner and canonical indexer state before publishing any catalogue card.
+ * Permissionless wallet-created ERC721 / ERC1155 Testnet collection listing.
+ * The browser deploys contract bytecode directly from each creator wallet.
+ * No owner-only factory, admin key, paid minting, or platform signing is involved.
+ * Registry admission verifies a successful transaction deployed this exact
+ * contract, the signer still owns it, it has deployed code and an NFT interface.
  */
 export async function POST(request: NextRequest) {
  try {
   guardMutation(request);
   const session = await requireSession(request);
   if(session.chainId !== 18881) throw new ApiError(403,"Sign in using an Ultra EVM Testnet wallet");
-  if(!M4_DEPLOY_ENABLED || !M4_CANCUN_VERIFIED ||
-      !isAddress(M4_FACTORY_ADDRESS,{strict:false}))
-    throw new ApiError(503,"Verified public Ultra Testnet factory is not enabled");
   const body=await parseBody(request,5000);
   if(Object.keys(body).some(k=>!["address","txHash","standard","title","description","coverUrl"].includes(k)))
     throw new ApiError(400,"Unsupported creator collection field");
@@ -44,39 +41,32 @@ export async function POST(request: NextRequest) {
     throw new ApiError(400,"Collection title or description out of range");
   const coverUrl=validateCommunityCoverUrl(body.coverUrl);
   const creator=session.wallet.toLowerCase();
-  const factory=getAddress(M4_FACTORY_ADDRESS),address=getAddress(body.address);
+  const address=getAddress(body.address);
   const chain=await rpc.getChainId();
   if(chain!==18881)throw new ApiError(503,"RPC is not connected to Ultra EVM Testnet");
   const receipt=await rpc.getTransactionReceipt({hash:body.txHash as `0x${string}`})
    .catch(()=>{throw new ApiError(409,"Deployment transaction has not confirmed on Testnet");});
+  // Only direct EVM contract-creation transactions are accepted on this path.
+  // The receiving contract address is derived from the wallet's real transaction,
+  // not accepted from an unverified request body.
   if(receipt.status!=="success"||receipt.from.toLowerCase()!==creator||
-     receipt.to?.toLowerCase()!==factory.toLowerCase())
-    throw new ApiError(409,"Transaction must be signed by this wallet and sent to the approved public factory");
+     receipt.to!==null||!receipt.contractAddress||
+     receipt.contractAddress.toLowerCase()!==address.toLowerCase())
+    throw new ApiError(409,"This wallet must have directly deployed the specified NFT contract");
   const head=await rpc.getBlockNumber();
-  if(head<receipt.blockNumber+12n)
-    throw new ApiError(409,"Wait for 12 Ultra Testnet confirmations, then try publishing again");
-  const events=parseEventLogs({abi:factoryAbi,eventName:"CollectionCreated",strict:true,
-    logs:receipt.logs.filter(log=>log.address.toLowerCase()===factory.toLowerCase())});
-  if(!events.some(event=>event.args.collection?.toLowerCase()===address.toLowerCase() &&
-    event.args.creator?.toLowerCase()===creator &&
-    event.args.standard===(body.standard==="erc721"?1:2)))
-    throw new ApiError(409,"No matching factory creation event for this wallet and NFT");
-  const snapshot=head-12n;
-  const [factoryCode,version,creationCode,currentCode,owner,supported,registered]=await Promise.all([
-    rpc.getCode({address:factory,blockNumber:snapshot}),
-    rpc.readContract({address:factory,abi:factoryAbi,functionName:"VERSION",blockNumber:snapshot}),
+  if(head<receipt.blockNumber)
+    throw new ApiError(409,"Testnet deployment transaction has not confirmed yet");
+  const snapshot=head;
+  const [creationCode,currentCode,owner,supported]=await Promise.all([
     rpc.getCode({address,blockNumber:receipt.blockNumber}),
     rpc.getCode({address,blockNumber:snapshot}),
     rpc.readContract({address,abi:collectionAbi,functionName:"owner",blockNumber:snapshot}),
     rpc.readContract({address,abi:collectionAbi,functionName:"supportsInterface",
-      args:[body.standard==="erc721"?"0x80ac58cd":"0xd9b67a26"],blockNumber:snapshot}),
-    rpc.readContract({address:factory,abi:factoryAbi,functionName:"isCollection",
-      args:[address],blockNumber:snapshot})
-  ]).catch(()=>{throw new ApiError(503,"Unable to verify confirmed factory and collection bytecode");});
-  if(!factoryCode||factoryCode==="0x"||version!==2n||
-     !creationCode||creationCode==="0x"||!currentCode||currentCode==="0x"||
-     !supported||!registered||owner.toLowerCase()!==creator)
-    throw new ApiError(409,"Collection failed public factory v2, bytecode, NFT interface or creator ownership checks");
+      args:[body.standard==="erc721"?"0x80ac58cd":"0xd9b67a26"],blockNumber:snapshot})
+  ]).catch(()=>{throw new ApiError(503,"Unable to check NFT ownership and deployed code on Ultra Testnet");});
+  if(!creationCode||creationCode==="0x"||!currentCode||currentCode==="0x"||
+     !supported||owner.toLowerCase()!==creator)
+    throw new ApiError(409,"Collection failed the deployed NFT bytecode, interface or creator ownership checks");
 
   // Transactional, idempotent registration. Existing canonical registry rows
   // must match the standard; never backfill across a passed indexer checkpoint.
