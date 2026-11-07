@@ -18,6 +18,7 @@ export type CuratedCollection = {
   mintEnabled: boolean;
   mintAvailable: boolean;
   publishedAt: string | null;
+  archived: boolean;
 };
 const ownerAbi = parseAbi(["function owner() view returns (address)", "function supportsInterface(bytes4) view returns (bool)"]);
 const factoryAbi = parseAbi(["function isCollection(address) view returns (bool)","function VERSION() view returns (uint256)","function owner() view returns (address)"]);
@@ -83,14 +84,14 @@ export async function verifyOperatorCollection(addressRaw:string,operator:string
     throw new ApiError(403,"Collection contract must be owned by the authorised operator wallet");
   return {address:address.toLowerCase(),standard:registry.rows[0].token_standard};
 }
-type Row={contract_address:string;token_standard:"erc721"|"erc1155";title:string;description:string;cover_url:string|null;avatar_url:string|null;operator_wallet:string;mint_phase_id:string;status:"draft"|"published";mint_enabled:boolean;published_at:Date|null};
+type Row={contract_address:string;token_standard:"erc721"|"erc1155";title:string;description:string;cover_url:string|null;avatar_url:string|null;operator_wallet:string;mint_phase_id:string;status:"draft"|"published";mint_enabled:boolean;published_at:Date|null;archived_at:Date|null};
 export async function curatedCollections(publicOnly=true, address?:string): Promise<CuratedCollection[]> {
   const r=await getDb().query<Row>(
     `SELECT c.contract_address,n.token_standard,c.title,c.description,c.cover_url,
-            c.mint_phase_id::text,c.status,c.mint_enabled,c.published_at,c.avatar_url,c.operator_wallet
+            c.mint_phase_id::text,c.status,c.mint_enabled,c.published_at,c.avatar_url,c.operator_wallet,c.archived_at
      FROM looke_curated_collections c
      INNER JOIN nft_collections n ON n.chain_id=c.chain_id AND n.contract_address=c.contract_address
-     WHERE c.chain_id=18881 AND ($1::boolean=FALSE OR c.status='published')
+     WHERE c.chain_id=18881 AND ($1::boolean=FALSE OR (c.status='published' AND c.archived_at IS NULL))
        AND ($2::text IS NULL OR c.contract_address=$2)
      ORDER BY c.published_at DESC NULLS LAST,c.created_at DESC LIMIT 100`,
     [publicOnly,address||null]
@@ -142,7 +143,7 @@ export async function curatedCollections(publicOnly=true, address?:string): Prom
       address:x.contract_address,standard:x.token_standard,title:x.title,
       description:x.description,coverUrl:x.cover_url,avatarUrl:x.avatar_url,
       creatorWallet:x.operator_wallet,phaseId,
-      status:x.status,mintEnabled:mintAvailable,mintAvailable,
+      status:x.status,archived:x.archived_at!==null,mintEnabled:!x.archived_at&&mintAvailable,mintAvailable:!x.archived_at&&mintAvailable,
       publishedAt:x.published_at?.toISOString()||null
     };
   }));
