@@ -45,6 +45,7 @@ async function readJson<T>(resp:Response):Promise<T>{
 export default function MarketplacePage(){
   const wallet=useWalletSession();
   const [draft,setDraft]=useState<ListingDraft>(initial);
+  const [listingTarget,setListingTarget]=useState<{collection:string;tokenId:string|null}|null>(null);
   const [preview,setPreview]=useState<Listing|null>(null);
   const [candidates,setCandidates]=useState<Candidate[]>([]);
   const [selected,setSelected]=useState<Review|null>(null);
@@ -61,8 +62,13 @@ export default function MarketplacePage(){
     const query=new URLSearchParams(window.location.search);
     const collection=query.get("collection")||"";
     const tokenId=query.get("tokenId")||"";
-    if(isAddress(collection,{strict:false}))
-      setDraft(current=>({...current,collection,tokenId:/^(0|[1-9][0-9]*)$/.test(tokenId)?tokenId:current.tokenId}));
+    if(isAddress(collection,{strict:false})){
+      const validTokenId=/^(0|[1-9][0-9]*)$/.test(tokenId)?tokenId:null;
+      setDraft(current=>({...current,collection,tokenId:validTokenId??current.tokenId}));
+      setListingTarget({collection,tokenId:validTokenId});
+      // The collection page deep-links directly to the seller form, not the market overview.
+      window.requestAnimationFrame(()=>document.getElementById("seller-listing")?.scrollIntoView({block:"start"}));
+    }
   },[]);
 
   function edit<K extends keyof ListingDraft>(key:K,value:ListingDraft[K]){
@@ -205,13 +211,18 @@ export default function MarketplacePage(){
   return <section className="interior creator-page">
     <p className="eyebrow">LOOKE NFT / ULTRA EVM TESTNET / MARKETPLACE</p>
     <h1>Fixed-price NFT market.</h1>
+    {listingTarget&&<div className="creator-preflight" role="status">
+      <h2>{listingTarget.tokenId?`List NFT #${listingTarget.tokenId} for sale`:"List a collection NFT for sale"}</h2>
+      <p>Selected collection: <code>{listingTarget.collection}</code>{listingTarget.tokenId?` · Token #${listingTarget.tokenId}`:""}. Your selection is filled into the seller form below.</p>
+      {gateList?<p><strong>Sales are not yet enabled.</strong> The listing form can preview terms, but cannot publish a live sell order until marketplace verification is complete. {gateList}</p>:<p>Connect the wallet that owns the token, review its price and terms, and complete the required marketplace approval and signing steps.</p>}
+    </div>}
     <p className="interior-copy">Preview signed NFT offers, price and royalty terms with a wallet-scoped EIP-712 review. No NFT is escrowed; an unverified order row is not a live listing, trade or confirmation.</p>
     <p className="index-warning" role="status">
       {gateList || "Seller EIP-712 signatures require a separate explicit wallet approval."}
       {" · "}{gateBuy || "Purchasing requires a second explicit UOS transaction confirmation."}
     </p>
     <div className="studio-grid">
-      <form className="creator-form" onSubmit={reviewSeller}>
+      <form id="seller-listing" className="creator-form" onSubmit={reviewSeller}>
         <h2>1. Seller order terms</h2>
         <div className="creator-form-grid">
           <label className="creator-wide">Collection contract<input value={draft.collection} placeholder="0x..." onChange={e=>edit("collection",e.target.value)}/></label>
