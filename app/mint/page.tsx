@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { isAddress } from "viem";
 import { curatedCollections } from "@/lib/server/curation";
-import CuratedMintFlow from "@/components/CuratedMintFlow";
+import FreePublicMintFlow from "@/components/FreePublicMintFlow";
 export const dynamic="force-dynamic";
 export default async function MintPage({searchParams}:{searchParams:Promise<{collection?:string}>}){
  const query=await searchParams;
@@ -11,5 +11,5 @@ export default async function MintPage({searchParams}:{searchParams:Promise<{col
  try {drop=(await curatedCollections(true,address.toLowerCase()))[0];}
  catch {return <section className="curated-mint-blocked"><h1>Mint service unavailable</h1><p>Unable to verify the official collection registry. No mint transaction can be started here.</p><Link href="/explore">← Collections</Link></section>;}
  if(!drop||!drop.mintAvailable)return <section className="curated-mint-blocked"><h1>Minting is not open</h1><p>This collection is not published or has not been approved for wallet-signed Testnet minting.</p><Link href="/explore">← Official collections</Link></section>;
- return <CuratedMintFlow collection={drop.address} phaseId={drop.phaseId}/>;
+ return <FreePublicMintFlow collection={drop.address} phaseId={drop.phaseId}/>;
 }
