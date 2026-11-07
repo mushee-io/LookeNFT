@@ -13,13 +13,13 @@ export type VerifiedChainToken={
  evidenceSource:"verified-on-chain-ownerOf";
 };
 
-function ipfsGateway(uri:string, gatewayHost:string):string|null{
+export function ipfsGateway(uri:string, gatewayHost:string):string|null{
  if(!uri.startsWith("ipfs://")||uri.length>350)return null;
  const m=uri.slice(7).match(/^(b[a-z2-7]{25,90}|Qm[1-9A-HJ-NP-Za-km-z]{44})(?:\/([\w./-]*))?$/);
  if(!m||m[2]?.split("/").some(p=>p==="."||p===".."||p===""))return null;
  return "https://"+gatewayHost+"/ipfs/"+m[1]+(m[2]?"/"+m[2]:"");
 }
-function trustedGateway(coverUrl:string|null):string{
+export function trustedGateway(coverUrl:string|null):string{
  if(!coverUrl)return "gateway.pinata.cloud";
  try{
   const u=new URL(coverUrl);
