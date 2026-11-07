@@ -57,13 +57,19 @@ for (const [i,name] of names.entries()) {
   if (!raw || !/^[0-9a-f]+$/i.test(raw) || raw.length<200)
     throw Error("Invalid unlinked creation bytecode for "+name);
   const filename=i===0?"create-erc721.json":"create-erc1155.json";
-  fs.writeFileSync(path.join(dest,filename),JSON.stringify({
+  const artifact=JSON.stringify({
     standard:i===0?"erc721":"erc1155",
     chainId:18881,
     compiler:solc.version(),
     evmVersion:"paris",
     abi:compiled.abi,
     bytecode:"0x"+raw
-  })+"\n");
-  console.log(filename+": exported "+(raw.length/2)+" creation bytes for direct creator wallet deployment");
+  })+"\n";
+  // The versioned name is required because previous browser sessions cached
+  // the same URL's Cancun bytecode using force-cache across deployments.
+  // Keep legacy files for diagnostic compatibility; the creator uses only v1.
+  const versioned=filename.replace(".json","-paris-v1.json");
+  fs.writeFileSync(path.join(dest,filename),artifact);
+  fs.writeFileSync(path.join(dest,versioned),artifact);
+  console.log(versioned+": exported "+(raw.length/2)+" creation bytes for direct creator wallet deployment");
 }
