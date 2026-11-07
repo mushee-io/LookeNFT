@@ -39,7 +39,8 @@
     "m11:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts",
     "test:m12": "node --import tsx --test tests/m12.test.ts tests/m12.integration.test.ts",
     "m12:source-check": "tsx scripts/m12-readonly-source-check.ts",
-    "m12:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts"
+    "m12:restore-rehearsal": "tsx scripts/m11-restore-rehearsal.ts",
+    "prebuild": "node scripts/export-direct-nft-artifacts.cjs"
   },
   "dependencies": {
     "next": "16.4.5",
@@ -53,16 +54,17 @@
     "@openzeppelin/contracts": "5.6.1"
   },
   "devDependencies": {
+    "@looke/oz-paris": "npm:@openzeppelin/contracts@5.1.0",
+    "@nomicfoundation/hardhat-ethers": "3.1.3",
     "@types/node": "22.18.10",
+    "@types/pg": "8.15.5",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
-    "@types/pg": "8.15.5",
-    "typescript": "5.9.3",
-    "tsx": "4.20.6",
-    "hardhat": "2.29.1",
-    "@nomicfoundation/hardhat-ethers": "3.1.3",
     "ethers": "6.15.0",
+    "fast-check": "4.3.0",
+    "hardhat": "2.29.1",
     "solc": "0.8.30",
-    "fast-check": "4.3.0"
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
   }
 }
