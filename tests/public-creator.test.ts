@@ -45,3 +45,15 @@ test("any connected Ultra EVM Testnet wallet can directly deploy ERC721 or ERC11
  assert.match(exportScript,/@looke/);
  assert.match(exportScript,/oz-paris/);
 });
+
+test("creator deploy cannot reuse a stale Cancun artifact from browser cache",async()=>{
+ const page=await readFile(new URL("../app/create/page.tsx",import.meta.url),"utf8");
+ const exporter=await readFile(new URL("../scripts/export-direct-nft-artifacts.cjs",import.meta.url),"utf8");
+ assert.match(page,/create-erc721-paris-v1\.json/);
+ assert.match(page,/create-erc1155-paris-v1\.json/);
+ assert.match(page,/cache:"no-store"/);
+ assert.doesNotMatch(page,/cache:"force-cache"/);
+ assert.match(page,/Stale NFT bytecode: expected Paris/);
+ assert.match(exporter,/filename\.replace\("\.json","-paris-v1\.json"\)/);
+ assert.match(exporter,/fs\.writeFileSync\(path\.join\(dest,versioned\),artifact\)/);
+});
