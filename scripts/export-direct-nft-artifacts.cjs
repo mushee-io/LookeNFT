@@ -2,7 +2,7 @@
 /**
  * Export public creation bytecode for wallet-signed NFT deployment.
  * Browser data is NEVER signed by a server; each creator deploys from their own
- * Ultra EVM Testnet wallet. Paris output avoids Cancun-only MCOPY dependency.
+ * Ultra EVM Testnet wallet. Pinned OpenZeppelin 5.6.1 uses MCOPY, so compile with Cancun semantics.
  */
 const fs = require("node:fs");
 const path = require("node:path");
@@ -31,7 +31,7 @@ const input = {
   settings:{
     optimizer:{enabled:true,runs:1},
     viaIR:true,
-    evmVersion:"paris",
+    evmVersion:"cancun",
     metadata:{bytecodeHash:"ipfs"},
     outputSelection:{"*":{"*":["abi","evm.bytecode.object","evm.deployedBytecode.object"]}}
   }
