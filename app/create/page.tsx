@@ -284,8 +284,9 @@ export default function CreateCollectionPage(){
    <div className="creator-publish-panel">
     <h2>Create your NFT on Ultra EVM Testnet</h2>
     <p>Open to every Testnet wallet. Deploy your own ERC-721 or ERC-1155 contract without a factory, an admin key, or a LookeNFT creation fee.</p>
-    <button type="button" disabled={busy||!eligible||!!confirmedAddress} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
+    <button type="button" disabled={busy||!eligible||!!confirmedAddress||!!txHash} onClick={()=>void deploy()}>{busy?"Processing…":confirmedAddress?"Deployment verified ✓":"Deploy collection (wallet approval)"}</button>
     {!eligible&&<p className="operator-note">Connect any wallet on Ultra EVM Testnet to create an NFT.</p>}
+    {txHash&&!confirmedAddress&&<p className="operator-note">A deployment transaction was already submitted. Recover and verify it above before considering any new deployment; do not pay Testnet gas twice.</p>}
     {txHash&&<p className="creator-break">Transaction: <a href={ULTRA_TESTNET.explorerUrl+"/tx/"+txHash} target="_blank" rel="noopener noreferrer">{txHash}</a></p>}
     {confirmedAddress&&<p className="creator-break">Your NFT contract: <strong>{confirmedAddress}</strong></p>}
     {confirmedAddress&&<button type="button" disabled={busy||!!mintedTxHash} onClick={()=>void mintFirstNFT()}>
