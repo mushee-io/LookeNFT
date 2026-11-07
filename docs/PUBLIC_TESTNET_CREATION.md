@@ -1,20 +1,25 @@
-# LookeNFT — permissionless creator-owned Ultra EVM Testnet collections
+# LookeNFT — open NFT creation on Ultra EVM Testnet
 
-Scope: self-service ERC-721/ERC-1155 **collection creation and preview listing** on Ultra EVM Testnet, chain ID **18881**. This supersedes the operator-only creator UI in the stacked PR branch, without changing the existing owner-only V3 factory or the human-reviewed M12 public-mint release gates.
+**Anyone with a compatible EVM wallet can create and mint their own NFT on chain ID 18881. No admin wallet, approved deployment factory, paid platform fee, private key, or special permissions are required.**
 
-## How it works
-1. A visitor connects any EVM wallet, switches to Ultra EVM Testnet, signs into the existing replay-protected session, and supplies genuinely hosted metadata.
-2. The browser verifies that the configured **permissionless V2** factory has deployed code and reports VERSION=2 before it requests a transaction. It computes the deterministic collection address, submits exactly the allowed factory call with `eth_sendTransaction`, and checks receipt success, code and factory registration.
-3. After **12 blocks**, `POST /api/creator/collections` verifies authenticated creator = receipt sender = `CollectionCreated.creator` = current collection owner, the approved factory, version, chain, emitted contract address, bytecode, ERC-165 interface, and canonical indexer checkpoint.
-4. The endpoint writes a real indexed collection and a publicly visible Testnet preview with **mint_enabled=false**. It never mints, sells, funds, creates placeholder tokens, or changes mainnet.
-5. The curated operator API remains separate for official publisher responsibilities; public creator listings must not show an official/audited badge.
+## Simple creator flow
+1. Connect a wallet to **Ultra EVM Testnet (18881)** at `/create`.
+2. Enter the collection name, metadata IPFS base URI, supply and artwork cover. Use ERC-721 for unique NFTs or ERC-1155 for editions.
+3. Click **Preview collection**, then **Deploy collection (wallet approval)**. The creator approves a direct contract-creation transaction. The wallet pays only normal Testnet gas.
+4. After the confirmed deployment, click **Mint NFT #1 to my wallet (free)**. The owner approves one additional zero-value Testnet transaction. For ERC-721, the first sequential token is #1; ERC-1155 mints one unit of ID #1.
+5. Optionally **Sign in** with the creator's wallet and click **List Testnet collection**. The server checks the successful contract-creation receipt, originating wallet, NFT standard, contract bytecode, and current contract ownership before saving a genuine catalogue entry.
 
-## Non-negotiable prerequisites
-- Set `NEXT_PUBLIC_M4_FACTORY_ADDRESS` to a **real deployed and independently verified V2 permissionless factory**, not the owner-only V3. Merely changing frontend text cannot remove `onlyOwner` from V3.
-- Obtain genuine Ultra Cancun/MCOPY evidence; set `NEXT_PUBLIC_M4_CANCUN_VERIFIED=true` only once independently checked.
-- Enable `NEXT_PUBLIC_M4_ENABLE_DEPLOYMENT=true` **only** once public factory bytecode, wallet approval and chain-ID tests are confirmed. No private key, backend signing or automatic wallet action.
-- Apply all existing database migrations through `011_curated_mint_catalog.sql` and configure PostgreSQL; users' own Testnet deployments still cost wallet-signed gas.
-- Keep `NEXT_PUBLIC_M5_ENABLE_MINTING`, `M12_FINAL_FINANCIAL_EXECUTION_ENABLED` and `M12_FINAL_PUBLIC_BETA_ENABLED` false unless independently approved. A catalogue listing is not an open mint, financial execution, or mainnet launch.
+Metadata is hosted separately, e.g. `ipfs://YOUR_METADATA_CID/metadata/` for ERC-721 tokens with filenames `1`, `2`, etc. Local artwork uploads are only for preview and do not automatically pin files to IPFS.
 
-## Test expectations
-Run `npm run typecheck`, `npm run test`, `npm run contracts:compile` and `npm run contracts:test`. V2 Solidity tests already prove independent wallets can create collections and own their deployments. This change adds coverage of the new registration route's proof requirements and cover-host restrictions. End-to-end hosted database, independent RPC and wallet acceptance are still required before enabling deployment; none is fabricated here.
+## Implementation
+- `scripts/export-direct-nft-artifacts.cjs` compiles the existing creator-owned `Looke721Collection` and `Looke1155Collection` using pinned solc 0.8.30 with **Paris** bytecode, rather than relying on Cancun MCOPY. It runs as `npm prebuild` and writes public creator deployment artifacts.
+- `app/create/page.tsx` uses `encodeDeployData` and the two local artifacts for a direct wallet deployment, checks the receipt and ownership and allows a separate free creator reserve mint.
+- `components/WalletSessionProvider.tsx` restricts the wallet transaction methods to **chain 18881** with `value: 0`. A real wallet must explicitly approve each transaction.
+- `app/api/creator/collections/route.ts` registers only genuine direct wallet contract creations, authenticated by the current creator, with an NFT interface and matching owner; no factory or admin key.
+- Public paid minting, marketplace trading, funds handling and mainnet transactions remain disabled. Creator reserve mint is separate and nonpayable.
+
+## What is not claimed
+Code changes alone do not create on-chain transactions. The creator must still connect their wallet, have some Testnet gas, and approve the deployment and reserve mint. Successful local CI does not prove actual Ultra EVM Testnet RPC compatibility. No on-chain contract was deployed by this change.
+
+## Deploying the website
+The previous draft PR stack has not been merged to `main`, so this feature is not automatically live on the public URL. Deploy this branch only after CI passes and Vercel integration is available. No private key or admin factory environment variable is needed for **direct Testnet collection creation**. Configure the existing PostgreSQL migrations and authentication to enable optional catalogue listing.
