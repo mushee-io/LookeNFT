@@ -98,7 +98,7 @@ export default function CreateCollectionPage(){
    if(!response.ok)throw Error("NFT creation bytecode is not available in this website build.");
    const artifact=await response.json() as {standard?:string;chainId?:number;evmVersion?:string;bytecode?:string};
    if(artifact.chainId!==18881||artifact.standard!==validated.standard||
-      artifact.evmVersion!=="paris"||!/^0x[0-9a-fA-F]{200,500000}$/.test(artifact.bytecode||""))
+      artifact.evmVersion!=="cancun"||!/^0x[0-9a-fA-F]{200,500000}$/.test(artifact.bytecode||""))
      throw Error("Invalid Ultra Testnet NFT contract artifact.");
    const owner=getAddress(wallet.address!);
    const bytecode=artifact.bytecode as Hex;
