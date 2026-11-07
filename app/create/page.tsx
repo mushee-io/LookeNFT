@@ -103,8 +103,8 @@ export default function CreateCollectionPage(){
    const owner=getAddress(wallet.address!);
    const bytecode=artifact.bytecode as Hex;
    const calldata=validated.standard==="erc721"
-    ?encodeDeployData({abi:erc721Constructor,bytecode,args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,owner,validated.royaltyBps]})
-    :encodeDeployData({abi:erc1155Constructor,bytecode,args:[validated.uri,validated.totalCap,validated.perIdCap,owner,owner,validated.royaltyBps]});
+    ?encodeDeployData({abi:erc721Constructor,bytecode,args:[validated.name,validated.symbol,validated.uri,validated.totalCap,owner,owner,BigInt(validated.royaltyBps)]})
+    :encodeDeployData({abi:erc1155Constructor,bytecode,args:[validated.uri,validated.totalCap,validated.perIdCap,owner,owner,BigInt(validated.royaltyBps)]});
    const tx=await wallet.submitDirectNFTDeployment(calldata);
    setTxHash(tx);
    setNotice("Creation submitted from your wallet. Confirming your NFT contract on Ultra EVM Testnet.");
