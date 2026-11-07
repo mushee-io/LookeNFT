@@ -191,6 +191,7 @@ export default function CollectionManagePanel({collection,onChanged}:{
   </button>
   {show&&<div style={{display:"grid",gap:18,marginTop:20}}>
    <h2>Collection owner controls</h2>
+   {!wallet.authenticated&&<button type="button" disabled={busy||wallet.pending} onClick={()=>void wallet.signIn()}>Sign in with owner wallet to edit</button>}
    <p>Connected wallet: {wallet.address}. You own this Ultra EVM Testnet NFT contract. Changes to this page require wallet sign-in; on-chain changes require separate transaction approval.</p>
    <div style={{display:"grid",gap:10}}>
     <label>Collection name<input value={title} maxLength={90} onChange={e=>setTitle(e.target.value)}/></label>
