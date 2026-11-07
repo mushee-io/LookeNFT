@@ -51,7 +51,7 @@ for (const [i,name] of names.entries()) {
     standard:i===0?"erc721":"erc1155",
     chainId:18881,
     compiler:solc.version(),
-    evmVersion:"paris",
+    evmVersion:"cancun",
     abi:compiled.abi,
     bytecode:"0x"+raw
   })+"\n");
