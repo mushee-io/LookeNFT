@@ -105,7 +105,7 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{address
   const valid=!paused&&!cancelled&&block.timestamp<=end&&start>0n&&end>start;
   await getDb().query(
    "UPDATE looke_curated_collections SET mint_phase_id=$2,mint_enabled=$3,updated_at=now(),operator_wallet=$4 WHERE chain_id=18881 AND contract_address=$1",
-   [user.address,id,valid&&user.status==="published",user.owner]);
-  return noStore({address:user.address,phaseId:id,mintScheduled:valid,mintActive:valid&&block.timestamp>=start&&user.status==="published",onchainPaused:paused,startsAt:start.toString(),endsAt:end.toString()});
+   [user.address,id,valid,user.owner]);
+  return noStore({address:user.address,phaseId:id,mintScheduled:valid,mintActive:valid&&block.timestamp>=start,onchainPaused:paused,startsAt:start.toString(),endsAt:end.toString()});
  }catch(error){return apiFailure(error);}
 }
