@@ -23,6 +23,7 @@ const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000
 const erc721Constructor=parseAbi(["constructor(string name_,string symbol_,string baseURI_,uint256 maxSupply_,address creator_,address royaltyReceiver_,uint96 royaltyBps_)"]);
 const erc1155Constructor=parseAbi(["constructor(string uriTemplate_,uint256 totalCap_,uint256 perIdCap_,address creator_,address royaltyReceiver_,uint96 royaltyBps_)"]);
 const nftOwnershipAbi=parseAbi(["function owner() view returns (address)","function supportsInterface(bytes4) view returns (bool)"]);
+const erc721DetailsAbi=parseAbi(["function name() view returns (string)","function symbol() view returns (string)","function baseTokenURI() view returns (string)","function maxSupply() view returns (uint256)"]);
 const mint721Abi=parseAbi(["function mintReserved(address recipient) returns (uint256)","function ownerOf(uint256) view returns (address)"]);
 const mint1155Abi=parseAbi(["function mintReserved(address recipient,uint256 tokenId,uint256 quantity)","function balanceOf(address,uint256) view returns (uint256)"]);
 
@@ -87,7 +88,13 @@ export default function CreateCollectionPage(){
 
  const put=(key:keyof Form,value:string)=>{
   setForm(old=>({...old,[key]:value,...(key==="totalCap"&&old.standard==="erc1155"?{perIdCap:value}:{})}));
-  setConfirmedAddress("");setTxHash(null);setPublished(false);setMintedTxHash(null);setError("");setNotice("");
+  // Description and cover artwork are off-chain catalogue metadata: editing
+  // them must NOT erase the already-confirmed NFT contract or its tx hash.
+  const changesImmutableContract=["standard","name","symbol","metadataUri","totalCap","perIdCap","royaltyPercent"].includes(key);
+  if(changesImmutableContract){
+   setConfirmedAddress("");setTxHash(null);setPublished(false);setMintedTxHash(null);
+  }
+  setError("");setNotice("");
  };
  function preview(event:FormEvent){
   event.preventDefault();setError("");setNotice("");
@@ -120,7 +127,21 @@ export default function CreateCollectionPage(){
   if(!code||code==="0x"||owner.toLowerCase()!==wallet.address.toLowerCase()||(!is721&&!is1155))
     throw Error("The transaction succeeded, but deployed NFT bytecode, ownership or interface could not be verified.");
   const standard:Standard=is721?"erc721":"erc1155";
-  setForm(old=>({...old,standard}));
+  // Populate the original immutable ERC-721 collection details directly from
+  // the contract. This lets the creator recover, add a cover/description and
+  // list without signing or paying for another deployment.
+  if(is721){
+   try{
+    const [name,symbol,baseURI,maxSupply]=await Promise.all([
+     rpc.readContract({address,abi:erc721DetailsAbi,functionName:"name"}),
+     rpc.readContract({address,abi:erc721DetailsAbi,functionName:"symbol"}),
+     rpc.readContract({address,abi:erc721DetailsAbi,functionName:"baseTokenURI"}),
+     rpc.readContract({address,abi:erc721DetailsAbi,functionName:"maxSupply"})
+    ]);
+    setForm(old=>({...old,standard,name,symbol,metadataUri:baseURI,totalCap:maxSupply.toString(),
+      perWalletCap:String(Math.max(1,Math.min(Number(maxSupply),Number(old.perWalletCap)||1)))}));
+   }catch{setForm(old=>({...old,standard}));}
+  }else setForm(old=>({...old,standard}));
   setConfirmedAddress(address);
   setTxHash(hash);
   setRecoverHash(hash);
