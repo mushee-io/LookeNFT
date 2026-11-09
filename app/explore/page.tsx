@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import OperatorCreateNav from "@/components/OperatorCreateNav";
+import WalletConnect from "@/components/WalletConnect";
 import { useWalletSession } from "@/components/WalletSessionProvider";
 
 type Drop={
@@ -98,10 +99,10 @@ export default function ExplorePage(){
         <h2 id="testnet-delete-title">Delete {deleteTarget.title} from LookeNFT?</h2>
         <p id="testnet-delete-description">This Testnet-only action removes the collection from public Explore and its gallery. It does <strong>not</strong> burn NFTs, destroy the on-chain contract, revoke anyone's ownership, or stop an existing mint phase. You can restore the collection later from its direct URL.</p>
         <p className="curated-delete-address">Contract: {deleteTarget.address}</p>
-        {!wallet.address||wallet.chainId!==18881?
-          <p className="operator-note">Connect the collection owner's Ultra EVM Testnet wallet using the site header to proceed.</p>:
-          !wallet.authenticated?<div className="curated-delete-signin"><p>Sign in with the collection-owner wallet to unlock deletion.</p>
-            <button type="button" disabled={wallet.pending||deleteBusy} onClick={()=>void wallet.signIn()}>{wallet.pending?"Waiting for wallet…":"Sign in with owner wallet"}</button>
+        {!wallet.address||wallet.chainId!==18881||!wallet.authenticated?
+          <div className="curated-delete-signin">
+            <p>Connect and sign in with the collection owner's Ultra EVM Testnet wallet.</p>
+            <WalletConnect />
           </div>:<p className="operator-note">Signed in: {wallet.address}. LookeNFT will verify this is the current on-chain collection owner.</p>}
         <label>Type <strong>DELETE {deleteTarget.title}</strong> to confirm
           <input autoFocus autoComplete="off" value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} disabled={deleteBusy} aria-label="Confirm Testnet collection deletion" />
@@ -109,7 +110,7 @@ export default function ExplorePage(){
         {deleteError&&<p role="alert" className="operator-error">{deleteError}</p>}
         <div className="curated-delete-actions">
           <button type="button" className="creator-secondary" disabled={deleteBusy} onClick={closeDelete}>Cancel</button>
-          <button type="button" className="creator-delete-button" disabled={deleteBusy||!wallet.authenticated||wallet.chainId!==18881||deleteConfirmation!=="DELETE "+deleteTarget.title} onClick={()=>void removeCollection()}>
+          <button type="button" className="creator-delete-button" disabled={deleteBusy||wallet.pending||!wallet.authenticated||wallet.chainId!==18881||deleteConfirmation!=="DELETE "+deleteTarget.title} onClick={()=>void removeCollection()}>
             {deleteBusy?"Removing…":"Delete from LookeNFT"}
           </button>
         </div>

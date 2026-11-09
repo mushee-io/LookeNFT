@@ -575,7 +575,10 @@ button.creator-delete-button:disabled{opacity:.4;cursor:not-allowed;}
 .curated-delete-dialog label input{background:#140e17;color:white;border:1px solid #85516b;border-radius:9px;padding:13px;width:100%;font:inherit;}
 .curated-delete-signin{display:grid;gap:7px;}
 .curated-delete-signin p{margin:0;font-size:13px;}
-.curated-delete-signin button{justify-self:start;background:#ff62a0;border:0;border-radius:9px;padding:11px;font-weight:700;color:#170917;}
+.curated-delete-signin .wallet-container{margin:0;max-width:none;}
+.curated-delete-signin .wallet-actions{justify-content:flex-start;}
+.curated-delete-signin .wallet-picker{position:static;width:100%;margin-top:8px;}
+.curated-delete-signin .wallet-picker p,.curated-delete-signin .wallet-message{color:#f4c5d7;text-align:left;}
 .curated-delete-actions{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px;}
 .curated-delete-actions button{padding:11px 15px;border-radius:10px;font-weight:750;}
 .curated-delete-actions .creator-secondary{background:#342733;border:1px solid #65445c;color:#fff;}
