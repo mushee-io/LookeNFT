@@ -18,10 +18,7 @@ const abi=parseAbi([
 const emptyRoot="0x"+"0".repeat(64);
 
 async function authorized(request:NextRequest,raw:string){
- const session=await requireSession(request);
- if(session.chainId!==18881||!isAddress(raw,{strict:false}))
-  throw new ApiError(403,"An authenticated Ultra EVM Testnet owner wallet is required");
- const address=getAddress(raw).toLowerCase();
+ const {address,wallet}=await collectionSession(request,raw);
  const row=await getDb().query<{status:string;operator_wallet:string;archived_at:Date|null}>(
   "SELECT status,operator_wallet,archived_at FROM looke_curated_collections WHERE chain_id=18881 AND contract_address=$1",
   [address]);
@@ -31,9 +28,16 @@ async function authorized(request:NextRequest,raw:string){
   rpc.readContract({address:address as `0x${string}`,abi,functionName:"owner"}),
   rpc.getCode({address:address as `0x${string}`})
  ]).catch(()=>{throw new ApiError(503,"Could not verify the current collection owner on Ultra Testnet");});
- if(chain!==18881||!code||code==="0x"||owner.toLowerCase()!==session.wallet.toLowerCase())
+ if(chain!==18881||!code||code==="0x"||owner.toLowerCase()!==wallet)
   throw new ApiError(403,"Only the current on-chain collection owner can manage this collection");
- return {address,owner:session.wallet.toLowerCase(),status:row.rows[0].status,archivedAt:row.rows[0].archived_at};
+ return {address,owner:wallet,archivedAt:row.rows[0].archived_at};
+}
+
+async function collectionSession(request:NextRequest,raw:string){
+ const session=await requireSession(request);
+ if(session.chainId!==18881||!isAddress(raw,{strict:false}))
+  throw new ApiError(403,"An authenticated Ultra EVM Testnet owner wallet is required");
+ return {address:getAddress(raw).toLowerCase(),wallet:session.wallet.toLowerCase()};
 }
 
 export async function PATCH(request:NextRequest,{params}:{params:Promise<{address:string}>}){
@@ -90,14 +94,21 @@ export async function DELETE(request:NextRequest,{params}:{params:Promise<{addre
  try{
   guardMutation(request);
   const {address:raw}=await params;
-  const user=await authorized(request,raw);
+  const {address,wallet}=await collectionSession(request,raw);
   const body=await parseBody(request,1024);
-  if(Object.keys(body).length!==1||body.confirm!==user.address)
+  if(Object.keys(body).length!==1||body.confirm!==address)
    throw new ApiError(400,"Confirm this exact collection address to delete it from LookeNFT");
-  const result=await getDb().query(
-   "UPDATE looke_curated_collections SET archived_at=COALESCE(archived_at,now()),status='draft',mint_enabled=FALSE,operator_wallet=$2,updated_at=now() WHERE chain_id=18881 AND contract_address=$1 RETURNING archived_at",
-   [user.address,user.owner]);
-  return noStore({removedFromLookeNFT:true,archivedAt:result.rows[0].archived_at,address:user.address,
+  const db=getDb();
+  const archive="UPDATE looke_curated_collections SET archived_at=COALESCE(archived_at,now()),status='draft',mint_enabled=FALSE,operator_wallet=$2,updated_at=now() WHERE chain_id=18881 AND contract_address=$1";
+  // The verified listing wallet can withdraw its catalogue entry during a chain outage.
+  // Check that permission in the same statement as the write.
+  let result=await db.query<{archived_at:Date}>(archive+" AND operator_wallet=$2 RETURNING archived_at",[address,wallet]);
+  if(!result.rowCount){
+   const user=await authorized(request,raw);
+   result=await db.query<{archived_at:Date}>(archive+" RETURNING archived_at",[user.address,user.owner]);
+  }
+  if(!result.rowCount)throw new ApiError(404,"Collection is not registered in LookeNFT");
+  return noStore({removedFromLookeNFT:true,archivedAt:result.rows[0].archived_at,address,
    note:"Collection and NFTs remain deployed on Ultra EVM Testnet. No on-chain tokens were burned."});
  }catch(error){return apiFailure(error);}
 }

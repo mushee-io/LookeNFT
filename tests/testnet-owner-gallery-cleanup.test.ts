@@ -14,8 +14,9 @@ test("Testnet cleanup uses reversible archive, not deleting on-chain NFTs",async
  assert.match(api,/guardMutation\(request\)/);
  assert.match(api,/requireSession\(request\)/);
  assert.match(api,/functionName:"owner"/);
- assert.match(api,/owner\.toLowerCase\(\)!==session\.wallet\.toLowerCase\(\)/);
- assert.match(api,/body\.confirm!==user\.address/);
+ assert.match(api,/owner\.toLowerCase\(\)!==wallet/);
+ assert.match(api,/body\.confirm!==address/);
+ assert.match(api,/archive\+" AND operator_wallet=\$2 RETURNING archived_at"/);
  assert.match(api,/archived_at=COALESCE\(archived_at,now\(\)\)/);
  assert.match(api,/archived_at=NULL,status='draft'/);
  assert.match(api,/mint_enabled=FALSE/);
@@ -67,6 +68,6 @@ test("Explore collection cards expose a separate owner-confirmed Testnet delete 
  assert.match(explore,/confirm:deleteTarget\.address\.toLowerCase\(\)/);
  assert.match(explore,/setCollections\(old=>old\.filter/);
  assert.match(explore,/does <strong>not<\/strong> burn NFTs/);
- assert.match(backend,/owner\.toLowerCase\(\)!==session\.wallet\.toLowerCase\(\)/);
+ assert.match(backend,/owner\.toLowerCase\(\)!==wallet/);
  assert.match(backend,/archived_at=COALESCE\(archived_at,now\(\)\)/);
 });

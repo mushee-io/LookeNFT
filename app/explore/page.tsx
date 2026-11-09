@@ -89,7 +89,7 @@ export default function ExplorePage(){
           <div className="curated-card-bottom"><span>{drop.standard.toUpperCase()} · Testnet</span><strong>{drop.mintAvailable?"Mint open":"Preview"}</strong></div></div>
         </Link>
         <div className="curated-card-controls">
-          <span>Testnet · owner only</span>
+          <span>Testnet · listing wallet or owner</span>
           <button type="button" className="curated-card-delete" aria-label={"Delete "+drop.title+" collection from LookeNFT"} onClick={()=>openDelete(drop)}>Delete collection</button>
         </div>
       </div>)}</div>:
@@ -101,9 +101,9 @@ export default function ExplorePage(){
         <p className="curated-delete-address">Contract: {deleteTarget.address}</p>
         {!wallet.address||wallet.chainId!==18881||!wallet.authenticated?
           <div className="curated-delete-signin">
-            <p>Connect and sign in with the collection owner's Ultra EVM Testnet wallet.</p>
+            <p>Sign in with the Ultra EVM Testnet wallet registered on the listing or the current collection owner’s wallet.</p>
             <WalletConnect />
-          </div>:<p className="operator-note">Signed in: {wallet.address}. LookeNFT will verify this is the current on-chain collection owner.</p>}
+          </div>:<p className="operator-note">Signed in: {wallet.address}. LookeNFT checks this wallet’s permission to withdraw the listing.</p>}
         <label>Type <strong>DELETE {deleteTarget.title}</strong> to confirm
           <input autoFocus autoComplete="off" value={deleteConfirmation} onChange={e=>setDeleteConfirmation(e.target.value)} disabled={deleteBusy} aria-label="Confirm Testnet collection deletion" />
         </label>

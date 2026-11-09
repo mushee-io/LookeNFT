@@ -1,7 +1,8 @@
 # Ultra EVM Testnet collection cleanup
 
-Only the authenticated, **current on-chain owner** may remove a registered
-collection from LookeNFT. In Manage Collection → Owner, type
+The authenticated wallet registered on a Testnet listing can withdraw it from
+LookeNFT even when Ultra RPC is unavailable. The current on-chain owner can
+also withdraw it after a live ownership check. In Explore or Manage Collection → Owner, type
 `DELETE <collection name>` to enable **Delete collection from LookeNFT**.
 
 * Deleting is a reversible **database archive**: the collection disappears from

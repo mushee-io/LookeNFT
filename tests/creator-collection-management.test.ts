@@ -16,7 +16,7 @@ test("collection modifications require authenticated current on-chain owner, no 
  assert.match(route,/guardMutation\(request\)/);
  assert.match(route,/requireSession\(request\)/);
  assert.match(route,/functionName:"owner"/);
- assert.match(route,/owner\.toLowerCase\(\)!==session\.wallet\.toLowerCase\(\)/);
+ assert.match(route,/owner\.toLowerCase\(\)!==wallet/);
  assert.match(route,/validateCommunityCoverUrl\(body\.coverUrl\)/);
  assert.match(route,/validateCommunityCoverUrl\(body\.avatarUrl\)/);
  assert.match(route,/operator_wallet/);
