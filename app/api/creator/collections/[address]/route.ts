@@ -8,7 +8,28 @@ import { ULTRA_TESTNET } from "@/lib/network";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
-const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:12000,retryCount:1})});
+const rpc=createPublicClient({transport:http(ULTRA_TESTNET.rpcUrl,{timeout:8000,retryCount:0})});
+// Read-only backup provider for Ultra EVM Testnet; never trust a response from
+// another chain, and never substitute a database creator field for owner().
+const backupRpc=createPublicClient({transport:http("https://18881.rpc.thirdweb.com",{timeout:8000,retryCount:0})});
+async function verifyCurrentOwner(address:`0x${string}`):Promise<string>{
+ for(const client of [rpc,backupRpc]){
+  try{
+   const [chain,owner,code]=await Promise.all([
+    client.getChainId(),
+    client.readContract({address,abi,functionName:"owner"}),
+    client.getCode({address})
+   ]);
+   if(chain!==18881)continue;
+   if(!code||code==="0x")throw new ApiError(409,"Collection contract is not deployed on Ultra EVM Testnet");
+   return owner.toLowerCase();
+  }catch(error){
+   if(error instanceof ApiError)throw error;
+   // Timeout/provider failure: retry using the independent read-only RPC.
+  }
+ }
+ throw new ApiError(503,"Ultra Testnet ownership verification is temporarily unavailable on both RPC providers. Please retry.");
+}
 const abi=parseAbi([
  "function owner() view returns (address)",
  "function paused() view returns (bool)",
@@ -26,12 +47,8 @@ async function authorized(request:NextRequest,raw:string){
   "SELECT status,operator_wallet,archived_at FROM looke_curated_collections WHERE chain_id=18881 AND contract_address=$1",
   [address]);
  if(row.rowCount!==1)throw new ApiError(404,"Collection is not registered in LookeNFT");
- const [chain,owner,code]=await Promise.all([
-  rpc.getChainId(),
-  rpc.readContract({address:address as `0x${string}`,abi,functionName:"owner"}),
-  rpc.getCode({address:address as `0x${string}`})
- ]).catch(()=>{throw new ApiError(503,"Could not verify the current collection owner on Ultra Testnet");});
- if(chain!==18881||!code||code==="0x"||owner.toLowerCase()!==session.wallet.toLowerCase())
+ const owner=await verifyCurrentOwner(address as `0x${string}`);
+ if(owner!==session.wallet.toLowerCase())
   throw new ApiError(403,"Only the current on-chain collection owner can manage this collection");
  return {address,owner:session.wallet.toLowerCase(),status:row.rows[0].status,archivedAt:row.rows[0].archived_at};
 }
